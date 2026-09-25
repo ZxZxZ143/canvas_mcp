@@ -1,0 +1,20 @@
+{
+  "name": "canvas-student-local",
+  "interface": {
+    "displayName": "Canvas Student Local"
+  },
+  "plugins": [
+    {
+      "name": "canvas-student",
+      "source": {
+        "source": "local",
+        "path": "./plugins/canvas-student"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

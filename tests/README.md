@@ -1,0 +1,3 @@
+# Offline connection and academic-read tests
+
+Run `python -m pytest -q` for the full offline suite. Tests cover configuration, credentials, actual HTTP client behavior through synthetic streams, profile/course and academic mappings, pagination, application fakes/aggregates, dates, submission states, composition, smoke commands, deadlines and security regressions. `fixtures/academic.json` contains synthetic data only. Live Canvas requires a separate opt-in smoke command documented in [the foundation guide](../docs/foundation.md) and [academic guide](../docs/academic-read-layer.md). MCP/file layers remain planned in [the testing architecture](../docs/architecture/testing.md).

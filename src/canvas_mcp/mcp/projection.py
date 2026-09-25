@@ -1,0 +1,371 @@
+"""Allowlisted, JSON-safe local MCP projections of normalized application data."""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from datetime import datetime
+from typing import Any, TypeVar, TypedDict, cast
+
+from pydantic_core import to_json
+from mcp.types import CallToolResult, TextContent
+
+from canvas_mcp.application.contracts import AssignmentContext, Result, Workload
+from canvas_mcp.domain.errors import BudgetExceededError
+from canvas_mcp.domain.models import (
+    Announcement,
+    Assignment,
+    AttachmentMetadata,
+    CalendarEvent,
+    Course,
+    CourseGrade,
+    DownloadedFile,
+    ExternalText,
+    FileMetadata,
+    FileReference,
+    Module,
+    ModuleItem,
+    ModuleSequence,
+    Observed,
+    Page,
+    Profile,
+    RubricCriterion,
+    RubricRating,
+    Submission,
+)
+
+T = TypeVar("T")
+MAX_MCP_OUTPUT_BYTES = 131_072
+
+
+class WarningDTO(TypedDict):
+    component: str
+    code: str
+    course_id: int | None
+
+
+class McpResult(TypedDict):
+    data: dict[str, Any]
+    request_id: str
+    complete: bool
+    warnings: list[WarningDTO]
+    observed_at: str
+
+
+def _date(value: datetime) -> str:
+    return value.isoformat()
+
+
+def _text(value: ExternalText) -> dict[str, Any]:
+    return {"text": value.text, "truncated": value.truncated, "trust": "untrusted"}
+
+
+def _observed(value: Observed[T], project: Callable[[T], Any]) -> dict[str, Any]:
+    return {
+        "state": value.state.value,
+        "value": None if value.value is None else project(value.value),
+        "truncated": value.truncated,
+    }
+
+
+def _identity(value: T) -> T:
+    return value
+
+
+def _entity(value: str) -> int:
+    """Canvas ingress already validated canonical positive decimal identities."""
+    return int(value)
+
+
+def _optional_entity(value: str | None) -> int | None:
+    return None if value is None else _entity(value)
+
+
+def _page(value: Page[T], project: Callable[[T], Any]) -> dict[str, Any]:
+    return {
+        "items": [project(item) for item in value.items],
+        "next_cursor": value.next_cursor,
+        "complete": value.complete,
+    }
+
+
+def envelope(value: Result[T], project: Callable[[T], dict[str, Any]]) -> McpResult:
+    output: McpResult = {
+        "data": project(value.data),
+        "request_id": value.request_id,
+        "complete": value.complete,
+        "warnings": [
+            {
+                "component": item.component,
+                "code": item.code,
+                "course_id": _optional_entity(item.course_id),
+            }
+            for item in value.warnings
+        ],
+        "observed_at": _date(value.observed_at),
+    }
+    # FastMCP emits both a pretty JSON TextContent block and structuredContent.
+    # Serialize their exact MCP result shape, allowing for JSON-RPC framing.
+    pretty = to_json(output, indent=2).decode("utf-8")
+    wire_result = CallToolResult(
+        content=[TextContent(type="text", text=pretty)],
+        structuredContent=cast(dict[str, Any], output),
+    )
+    wire_bytes = len(wire_result.model_dump_json().encode("utf-8")) + 1_024
+    if wire_bytes > MAX_MCP_OUTPUT_BYTES:
+        raise BudgetExceededError()
+    return output
+
+
+def profile(value: Profile) -> dict[str, Any]:
+    return {"name": _text(value.display_name), "timezone": _observed(value.timezone, _identity)}
+
+
+def course(value: Course) -> dict[str, Any]:
+    return {
+        "course_id": _entity(value.id),
+        "name": _text(value.name),
+        "course_code": _text(value.code),
+        "term": _observed(value.term, _text),
+    }
+
+
+def submission(value: Submission) -> dict[str, Any]:
+    return {
+        "state": value.state.value,
+        "submitted_at": _observed(value.submitted_at, _date),
+        "graded": value.graded,
+        "late": value.late,
+        "missing": value.missing,
+        "excused": value.excused,
+        "required": value.required,
+        "attachments": _observed(value.attachments, lambda xs: [attachment(x) for x in xs]),
+    }
+
+
+def assignment_summary(value: Assignment) -> dict[str, Any]:
+    own = value.submission.value
+    return {
+        "assignment_id": _entity(value.id),
+        "course_id": _entity(value.course_id),
+        "name": _text(value.title),
+        "due_at": _observed(value.due_at, _date),
+        "points_possible": _observed(value.points, _identity),
+        "submitted": None if own is None else own.state.value,
+        "late": None if own is None else own.late,
+        "missing": None if own is None else own.missing,
+        "graded": None if own is None else own.graded,
+    }
+
+
+def _material(value: Any) -> dict[str, Any]:
+    return {
+        "label": _text(value.label),
+        "kind": value.kind,
+        "target_id": _optional_entity(value.target_id),
+        "state": value.state,
+    }
+
+
+def assignment_detail(value: Assignment) -> dict[str, Any]:
+    return {
+        **assignment_summary(value),
+        "description": _observed(value.description, _text),
+        "submission_types": [_text(item) for item in value.submission_types],
+        "references": _observed(value.references, lambda xs: [_material(x) for x in xs]),
+        "unlock_at": _observed(value.unlock_at, _date),
+        "lock_at": _observed(value.lock_at, _date),
+        "allowed_attempts": _observed(value.allowed_attempts, _identity),
+        "published": value.published,
+        "required": value.required,
+    }
+
+
+def attachment(value: AttachmentMetadata) -> dict[str, Any]:
+    return {
+        "file_id": _entity(value.id),
+        "display_name": _text(value.display_name),
+        "content_type": _observed(value.content_type, _text),
+        "size": _observed(value.size, _identity),
+    }
+
+
+def _rating(value: RubricRating) -> dict[str, Any]:
+    return {
+        "description": _text(value.description),
+        "points": _observed(value.points, _identity),
+        "long_description": _observed(value.long_description, _text),
+    }
+
+
+def _criterion(value: RubricCriterion) -> dict[str, Any]:
+    return {
+        "description": _text(value.description),
+        "points": _observed(value.points, _identity),
+        "long_description": _observed(value.long_description, _text),
+        "ratings": [_rating(item) for item in value.ratings],
+    }
+
+
+def module(value: Module) -> dict[str, Any]:
+    return {
+        "module_id": _entity(value.id),
+        "course_id": _entity(value.course_id),
+        "name": _text(value.title),
+        "position": value.position,
+        "items_count": value.items_count,
+    }
+
+
+def module_item(value: ModuleItem) -> dict[str, Any]:
+    output = {
+        "item_id": _entity(value.id),
+        "module_id": _entity(value.module_id),
+        "course_id": _entity(value.course_id),
+        "name": _text(value.title),
+        "kind": value.kind,
+        "target_id": _optional_entity(value.target_id),
+        "position": value.position,
+    }
+    if value.kind == "file" and value.target_id is not None:
+        output["file_reference"] = {
+            "course_id": _entity(value.course_id),
+            "file_id": _entity(value.target_id),
+            "source_kind": "module_file",
+            "source_id": _entity(value.id),
+            "module_id": _entity(value.module_id),
+        }
+    return output
+
+
+def _sequence(value: ModuleSequence) -> dict[str, Any]:
+    return {
+        "module": module(value.module),
+        "current_item": module_item(value.current_item),
+        "previous_item": None if value.previous_item is None else module_item(value.previous_item),
+        "next_item": None if value.next_item is None else module_item(value.next_item),
+    }
+
+
+def assignment_context(value: AssignmentContext) -> dict[str, Any]:
+    def sourced_attachments(xs: tuple[AttachmentMetadata, ...]) -> list[dict[str, Any]]:
+        return [
+            {
+                **attachment(item),
+                "file_reference": {
+                    "course_id": _entity(value.course.id),
+                    "file_id": _entity(item.id),
+                    "source_kind": "assignment_attachment",
+                    "source_id": _entity(value.assignment.id),
+                    "module_id": None,
+                },
+            }
+            for item in xs
+        ]
+
+    return {
+        "course": course(value.course),
+        "assignment": assignment_detail(value.assignment),
+        "submission": _observed(value.submission, submission),
+        "rubric": _observed(value.rubric, lambda xs: [_criterion(x) for x in xs]),
+        "attachments": _observed(value.attachments, sourced_attachments),
+        "module_context": _observed(value.module_context, lambda xs: [_sequence(x) for x in xs]),
+    }
+
+
+def workload(value: Workload) -> dict[str, Any]:
+    return {
+        "items": _page(
+            value.items,
+            lambda item: {
+                "course": course(item.course),
+                "assignment": assignment_summary(item.assignment),
+                "submission": _observed(item.submission, submission),
+                "due_state": item.due_state,
+            },
+        ),
+        "coverage": {
+            "requested": [_entity(item) for item in value.coverage.requested],
+            "scanned": [_entity(item) for item in value.coverage.scanned],
+            "failed": [_entity(item) for item in value.coverage.failed],
+            "discovery_complete": value.coverage.discovery_complete,
+        },
+    }
+
+
+def announcement(value: Announcement) -> dict[str, Any]:
+    return {
+        "announcement_id": _entity(value.id),
+        "course_id": _entity(value.course_id),
+        "title": _text(value.title),
+        "body": _text(value.body),
+        "published_at": _observed(value.published_at, _date),
+    }
+
+
+def calendar_event(value: CalendarEvent) -> dict[str, Any]:
+    return {
+        "event_id": _entity(value.id),
+        "course_id": _entity(value.course_id),
+        "title": _text(value.title),
+        "starts_at": _observed(value.starts_at, _date),
+        "ends_at": _observed(value.ends_at, _date),
+        "all_day": value.all_day,
+        "assignment_id": _optional_entity(value.assignment_id),
+        "description": _observed(value.description, _text),
+    }
+
+
+def grade(value: CourseGrade) -> dict[str, Any]:
+    available = any(
+        field.value is not None
+        for field in (
+            value.current_score,
+            value.current_grade,
+            value.final_score,
+            value.final_grade,
+        )
+    )
+    return {
+        "course_id": _entity(value.course_id),
+        "available": available,
+        "current_score": _observed(value.current_score, _identity),
+        "current_grade": _observed(value.current_grade, _text),
+        "final_score": _observed(value.final_score, _identity),
+        "final_grade": _observed(value.final_grade, _text),
+    }
+
+
+def file_reference(value: FileReference) -> dict[str, Any]:
+    return {
+        "course_id": _entity(value.course_id),
+        "file_id": _entity(value.file_id),
+        "source_kind": value.source_kind,
+        "source_id": _optional_entity(value.source_id),
+        "module_id": _optional_entity(value.module_id),
+    }
+
+
+def file_metadata(value: FileMetadata) -> dict[str, Any]:
+    return {
+        "file_id": _entity(value.id),
+        "course_id": _entity(value.course_id),
+        "display_name": _text(value.display_name),
+        "content_type": _observed(value.content_type, _text),
+        "size": _observed(value.size, _identity),
+        "created_at": _observed(value.created_at, _date),
+        "updated_at": _observed(value.updated_at, _date),
+        "file_reference": file_reference(value.source),
+        "trust": "untrusted",
+    }
+
+
+def downloaded_file(value: DownloadedFile) -> dict[str, Any]:
+    return {
+        "artifact_id": value.artifact_id,
+        "managed_local_path": value.local_path,
+        "safe_filename": value.safe_filename,
+        "content_type": value.content_type,
+        "size": value.size,
+        "sha256": value.sha256,
+        "trust": "untrusted",
+    }

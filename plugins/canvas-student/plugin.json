@@ -1,0 +1,17 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "canvas-student",
+  "version": "0.1.0",
+  "description": "Personal read-only Canvas LMS access for courses, assignments, deadlines, modules, materials, grades, announcements, calendar events, and approved course-file downloads.",
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Canvas Student",
+        "shortDescription": "Read your personal Canvas coursework",
+        "longDescription": "Find courses, assignments, deadlines, grades, and materials in your personal Canvas account. Course-file downloads require approval.",
+        "category": "Productivity",
+        "capabilities": ["Read"]
+      }
+    }
+  }
+}
