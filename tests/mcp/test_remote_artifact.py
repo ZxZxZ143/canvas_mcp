@@ -75,6 +75,27 @@ def test_static_resource_is_inert_and_has_empty_external_domains():
     assert "crypto.subtle.digest" in card.content and "textContent" in card.content
 
 
+def test_saved_card_reference_survives_upgrade_without_expanding_resources():
+    server = create_server(Connection(), None, transport="http")
+    old_uri = "ui://canvas/original-file-v1.html"
+    current = list(asyncio.run(server.read_resource(ARTIFACT_URI)))[0]
+    saved = list(asyncio.run(server.read_resource(old_uri)))[0]
+    assert saved.content == current.content
+    assert saved.mime_type == current.mime_type == "text/html;profile=mcp-app"
+    assert saved.meta == current.meta
+    assert saved.meta["ui"]["csp"] == {"connectDomains": [], "resourceDomains": []}
+    tools = asyncio.run(server.list_tools())
+    download = next(tool for tool in tools if tool.name == "canvas_download_file")
+    assert download.meta["ui"]["resourceUri"] == ARTIFACT_URI != old_uri
+    with pytest.raises(Exception, match="Unknown resource"):
+        asyncio.run(server.read_resource("ui://canvas/unknown-file.html"))
+    local = create_server(Connection(), None)
+    assert asyncio.run(local.list_resources()) == []
+    for uri in (old_uri, ARTIFACT_URI):
+        with pytest.raises(Exception, match="Unknown resource"):
+            asyncio.run(local.read_resource(uri))
+
+
 @pytest.mark.parametrize("size", [250_000, 519_944, 4194304])
 def test_actual_http_endpoint_accepts_bounded_hidden_original(size):
     body = b"x" * size

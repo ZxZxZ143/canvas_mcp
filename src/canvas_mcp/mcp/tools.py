@@ -539,18 +539,27 @@ def create_server(
         server.remove_tool("canvas_download_file")
 
         from canvas_mcp.mcp.artifact_result import artifact_result
-        from canvas_mcp.mcp.artifact_ui import ARTIFACT_HTML, ARTIFACT_URI
+        from canvas_mcp.mcp.artifact_ui import ARTIFACT_HTML, ARTIFACT_URI, LEGACY_ARTIFACT_URI
 
-        @server.resource(
-            ARTIFACT_URI,
-            name="canvas_original_file",
-            mime_type="text/html;profile=mcp-app",
-            meta={
-                "ui": {"csp": {"connectDomains": [], "resourceDomains": []}, "prefersBorder": True}
-            },
-        )
         def original_file_card() -> str:
             return ARTIFACT_HTML
+
+        # Saved chat results can retain the previous static resource reference.
+        for card_uri, card_name in (
+            (ARTIFACT_URI, "canvas_original_file"),
+            (LEGACY_ARTIFACT_URI, "canvas_original_file_legacy"),
+        ):
+            server.resource(
+                card_uri,
+                name=card_name,
+                mime_type="text/html;profile=mcp-app",
+                meta={
+                    "ui": {
+                        "csp": {"connectDomains": [], "resourceDomains": []},
+                        "prefersBorder": True,
+                    }
+                },
+            )(original_file_card)
 
         @server.tool(
             name="canvas_download_file",

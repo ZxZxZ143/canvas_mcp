@@ -1,6 +1,7 @@
 """Static inert original-file card. No document HTML, network fetch or credentials."""
 
 ARTIFACT_URI = "ui://canvas/original-file-v2.html"
+LEGACY_ARTIFACT_URI = "ui://canvas/original-file-v1.html"
 ARTIFACT_HTML = r"""<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
 <style>body{font:14px system-ui;margin:16px;color:inherit}button,a{font:inherit;padding:10px 14px}p{overflow-wrap:anywhere}#download{display:none}</style>
