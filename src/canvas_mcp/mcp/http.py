@@ -24,7 +24,7 @@ from canvas_mcp.mcp.identity import (
 )
 from canvas_mcp.infrastructure.config.oauth import OAuthSettings
 from canvas_mcp.domain.file_content import REMOTE_ARTIFACT_MAX_BYTES
-from canvas_mcp.infrastructure.files.policy import reflects_capability
+from canvas_mcp.domain.reflection import reflects_secrets
 
 
 def _validate_original(output: object, secrets: tuple[str, ...]) -> None:
@@ -52,7 +52,7 @@ def _validate_original(output: object, secrets: tuple[str, ...]) -> None:
     original = base64.b64decode(encoded, validate=True)
     if len(original) != size or hashlib.sha256(original).hexdigest() != digest:
         raise ValueError()
-    if any(secret and reflects_capability(original, secret) for secret in secrets):
+    if reflects_secrets(original, secrets):
         raise ValueError()
 
 
