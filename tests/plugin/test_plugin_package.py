@@ -31,6 +31,7 @@ def test_portable_manifests_and_skills_are_self_contained():
         "scripts/Start-CanvasMcp.ps1",
         "skills/canvas-navigation/SKILL.md",
         "skills/assignment-workflow/SKILL.md",
+        "skills/assignment-workflow/references/eval-cases.json",
         "skills/course-materials/SKILL.md",
         "skills/study-overview/SKILL.md",
     }

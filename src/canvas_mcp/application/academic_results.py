@@ -7,6 +7,7 @@ from canvas_mcp.application.connection import ConnectionService
 from canvas_mcp.application.contracts import Result, Warning
 from canvas_mcp.domain.models import (
     Availability,
+    Assignment,
     ExternalText,
     MaterialReference,
     Observed,
@@ -27,6 +28,10 @@ def result(
     codes: set[str] = set()
 
     def visit(value: object) -> None:
+        if isinstance(value, Assignment) and value.description_redacted:
+            codes.add("source_text_redacted")
+        if isinstance(value, Assignment) and value.description_nontext_content:
+            codes.add("nontext_description_not_inspected")
         if isinstance(value, Observed):
             if value.state in (Availability.UNAVAILABLE, Availability.NOT_SUPPORTED):
                 codes.add("optional_metadata_unavailable")

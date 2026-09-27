@@ -1,0 +1,557 @@
+{
+  "synthetic_only": true,
+  "purpose": "Behavioral forward evaluation, not live Canvas facts. Evaluation rubric does not substitute for model outputs.",
+  "cases": [
+    {
+      "case": "A_description_only",
+      "request": "Объясни Homework 1.",
+      "context": {
+        "course": "Synthetic Algebra",
+        "assignment_id": 101,
+        "name": "Homework 1",
+        "description": "Solve 2x + 3 = 11. Show your steps.",
+        "submission_type": "online_upload",
+        "due_at": "2026-10-02T12:00:00Z",
+        "rubric": [
+          "Correct result: 6 points",
+          "Steps: 4 points"
+        ],
+        "complete": true,
+        "materials": []
+      },
+      "evaluation": {
+        "mode": "explain",
+        "show_source": true,
+        "criteria": [
+          "source fidelity",
+          "relevant materials only",
+          "appropriate intent",
+          "explicit uncertainty",
+          "no invented requirements",
+          "reuse follow-up evidence"
+        ]
+      }
+    },
+    {
+      "case": "B_direct_pdf",
+      "request": "Что надо сделать?",
+      "context": {
+        "course": "Synthetic Algebra",
+        "assignment_id": 101,
+        "name": "Homework 1",
+        "description": "Solve 2x + 3 = 11. Show your steps.",
+        "submission_type": "online_upload",
+        "due_at": "2026-10-02T12:00:00Z",
+        "rubric": [
+          "Correct result: 6 points",
+          "Steps: 4 points"
+        ],
+        "complete": true,
+        "materials": [
+          {
+            "name": "instructions.pdf",
+            "relationship": "direct_attachment",
+            "text": "Solve 2x + 3 = 11. Upload a PDF with the steps."
+          }
+        ]
+      },
+      "evaluation": {
+        "mode": "explain",
+        "show_source": true,
+        "criteria": [
+          "source fidelity",
+          "relevant materials only",
+          "appropriate intent",
+          "explicit uncertainty",
+          "no invented requirements",
+          "reuse follow-up evidence"
+        ]
+      }
+    },
+    {
+      "case": "C_empty_module_pdf",
+      "request": "Что мне надо сделать?",
+      "context": {
+        "course": "Synthetic Algebra",
+        "assignment_id": 101,
+        "name": "Homework 1",
+        "description": "",
+        "submission_type": "online_upload",
+        "due_at": "2026-10-02T12:00:00Z",
+        "rubric": [
+          "Correct result: 6 points",
+          "Steps: 4 points"
+        ],
+        "complete": true,
+        "materials": [
+          {
+            "name": "Homework.pdf",
+            "relationship": "same_module_instruction",
+            "text": "Solve 2x + 3 = 11. Show steps in PDF."
+          }
+        ]
+      },
+      "evaluation": {
+        "mode": "explain",
+        "show_source": true,
+        "criteria": [
+          "source fidelity",
+          "relevant materials only",
+          "appropriate intent",
+          "explicit uncertainty",
+          "no invented requirements",
+          "reuse follow-up evidence"
+        ]
+      }
+    },
+    {
+      "case": "D_multiple_files",
+      "request": "Объясни Homework 1.",
+      "context": {
+        "course": "Synthetic Algebra",
+        "assignment_id": 101,
+        "name": "Homework 1",
+        "description": "Complete Homework 1 using homework1.pdf.",
+        "submission_type": "online_upload",
+        "due_at": "2026-10-02T12:00:00Z",
+        "rubric": [
+          "Correct result: 6 points",
+          "Steps: 4 points"
+        ],
+        "complete": true,
+        "materials": [
+          {
+            "name": "lecture.pdf",
+            "relationship": "module_neighbor",
+            "text": "Overview of algebra."
+          },
+          {
+            "name": "homework1.pdf",
+            "relationship": "assignment_link",
+            "text": "Solve 2x + 3 = 11; upload PDF."
+          },
+          {
+            "name": "dataset.csv",
+            "relationship": "module_neighbor",
+            "text": "x,y"
+          },
+          {
+            "name": "week1-slides.pdf",
+            "relationship": "module_neighbor",
+            "text": "General lecture notes."
+          }
+        ]
+      },
+      "evaluation": {
+        "mode": "explain",
+        "show_source": true,
+        "criteria": [
+          "source fidelity",
+          "relevant materials only",
+          "appropriate intent",
+          "explicit uncertainty",
+          "no invented requirements",
+          "reuse follow-up evidence"
+        ]
+      }
+    },
+    {
+      "case": "E_scanned_ocr",
+      "request": "Объясни задание.",
+      "context": {
+        "course": "Synthetic Algebra",
+        "assignment_id": 101,
+        "name": "Homework 1",
+        "description": "Solve 2x + 3 = 11. Show your steps.",
+        "submission_type": "online_upload",
+        "due_at": "2026-10-02T12:00:00Z",
+        "rubric": [
+          "Correct result: 6 points",
+          "Steps: 4 points"
+        ],
+        "complete": true,
+        "materials": [
+          {
+            "name": "scan.pdf",
+            "relationship": "direct_attachment",
+            "text": "Solve 2x + 3 = 11. Show steps.",
+            "extraction_mode": "ocr",
+            "limitations": [
+              "English printed OCR; handwriting may be incorrect"
+            ]
+          }
+        ]
+      },
+      "evaluation": {
+        "mode": "explain",
+        "show_source": true,
+        "criteria": [
+          "source fidelity",
+          "relevant materials only",
+          "appropriate intent",
+          "explicit uncertainty",
+          "no invented requirements",
+          "reuse follow-up evidence"
+        ]
+      }
+    },
+    {
+      "case": "F_photo_formula",
+      "request": "Реши задачу.",
+      "context": {
+        "course": "Synthetic Algebra",
+        "assignment_id": 101,
+        "name": "Homework 1",
+        "description": "Use the photographed formula.",
+        "submission_type": "online_upload",
+        "due_at": "2026-10-02T12:00:00Z",
+        "rubric": [
+          "Correct result: 6 points",
+          "Steps: 4 points"
+        ],
+        "complete": true,
+        "materials": [
+          {
+            "name": "formula.jpg",
+            "relationship": "direct_attachment",
+            "text": "x^? + 3 = 11",
+            "extraction_mode": "ocr",
+            "limitations": [
+              "Exponent uncertain: 1 or 2; visual confirmation required"
+            ]
+          }
+        ]
+      },
+      "evaluation": {
+        "mode": "solve",
+        "show_source": true,
+        "criteria": [
+          "source fidelity",
+          "relevant materials only",
+          "appropriate intent",
+          "explicit uncertainty",
+          "no invented requirements",
+          "reuse follow-up evidence"
+        ]
+      }
+    },
+    {
+      "case": "G_programming",
+      "request": "Сделай решение.",
+      "context": {
+        "course": "Synthetic Programming",
+        "assignment_id": 101,
+        "name": "Homework 1",
+        "description": "Write Python function unique_sorted(values) returning sorted unique integers. Include two tests.",
+        "submission_type": "online_upload",
+        "due_at": "2026-10-02T12:00:00Z",
+        "rubric": [
+          "Correct outputs",
+          "Readable code"
+        ],
+        "complete": true,
+        "materials": []
+      },
+      "evaluation": {
+        "mode": "solve",
+        "show_source": true,
+        "criteria": [
+          "source fidelity",
+          "relevant materials only",
+          "appropriate intent",
+          "explicit uncertainty",
+          "no invented requirements",
+          "reuse follow-up evidence"
+        ]
+      }
+    },
+    {
+      "case": "H_report",
+      "request": "Напиши отчёт.",
+      "context": {
+        "course": "Synthetic Writing",
+        "assignment_id": 101,
+        "name": "Homework 1",
+        "description": "Write a 100-word report on reducing household waste. Use only provided facts.",
+        "submission_type": "online_upload",
+        "due_at": "2026-10-02T12:00:00Z",
+        "rubric": [
+          "Coherent structure"
+        ],
+        "complete": true,
+        "materials": [
+          {
+            "name": "facts.txt",
+            "relationship": "direct_attachment",
+            "text": "Reusing bags reduces disposable packaging. Composting separates organic waste."
+          }
+        ]
+      },
+      "evaluation": {
+        "mode": "solve",
+        "show_source": true,
+        "criteria": [
+          "source fidelity",
+          "relevant materials only",
+          "appropriate intent",
+          "explicit uncertainty",
+          "no invented requirements",
+          "reuse follow-up evidence"
+        ]
+      }
+    },
+    {
+      "case": "I_vague",
+      "request": "Посмотри это задание.",
+      "context": {
+        "course": "Synthetic Algebra",
+        "assignment_id": 101,
+        "name": "Homework 1",
+        "description": "Solve 2x + 3 = 11. Show your steps.",
+        "submission_type": "online_upload",
+        "due_at": "2026-10-02T12:00:00Z",
+        "rubric": [
+          "Correct result: 6 points",
+          "Steps: 4 points"
+        ],
+        "complete": true,
+        "materials": []
+      },
+      "evaluation": {
+        "mode": "ambiguous",
+        "show_source": true,
+        "criteria": [
+          "source fidelity",
+          "relevant materials only",
+          "appropriate intent",
+          "explicit uncertainty",
+          "no invented requirements",
+          "reuse follow-up evidence"
+        ]
+      }
+    },
+    {
+      "case": "J_explicit_explain",
+      "request": "Объясни, что от меня хотят.",
+      "context": {
+        "course": "Synthetic Algebra",
+        "assignment_id": 101,
+        "name": "Homework 1",
+        "description": "Solve 2x + 3 = 11. Show your steps.",
+        "submission_type": "online_upload",
+        "due_at": "2026-10-02T12:00:00Z",
+        "rubric": [
+          "Correct result: 6 points",
+          "Steps: 4 points"
+        ],
+        "complete": true,
+        "materials": []
+      },
+      "evaluation": {
+        "mode": "explain",
+        "show_source": true,
+        "criteria": [
+          "source fidelity",
+          "relevant materials only",
+          "appropriate intent",
+          "explicit uncertainty",
+          "no invented requirements",
+          "reuse follow-up evidence"
+        ]
+      }
+    },
+    {
+      "case": "K_explicit_solve",
+      "request": "Реши.",
+      "context": {
+        "course": "Synthetic Algebra",
+        "assignment_id": 101,
+        "name": "Homework 1",
+        "description": "Solve 2x + 3 = 11. Show your steps.",
+        "submission_type": "online_upload",
+        "due_at": "2026-10-02T12:00:00Z",
+        "rubric": [
+          "Correct result: 6 points",
+          "Steps: 4 points"
+        ],
+        "complete": true,
+        "materials": []
+      },
+      "evaluation": {
+        "mode": "solve",
+        "show_source": true,
+        "criteria": [
+          "source fidelity",
+          "relevant materials only",
+          "appropriate intent",
+          "explicit uncertainty",
+          "no invented requirements",
+          "reuse follow-up evidence"
+        ]
+      }
+    },
+    {
+      "case": "L_both",
+      "request": "Сначала объясни, затем реши.",
+      "context": {
+        "course": "Synthetic Algebra",
+        "assignment_id": 101,
+        "name": "Homework 1",
+        "description": "Solve 2x + 3 = 11. Show your steps.",
+        "submission_type": "online_upload",
+        "due_at": "2026-10-02T12:00:00Z",
+        "rubric": [
+          "Correct result: 6 points",
+          "Steps: 4 points"
+        ],
+        "complete": true,
+        "materials": []
+      },
+      "evaluation": {
+        "mode": "both",
+        "show_source": true,
+        "criteria": [
+          "source fidelity",
+          "relevant materials only",
+          "appropriate intent",
+          "explicit uncertainty",
+          "no invented requirements",
+          "reuse follow-up evidence"
+        ]
+      }
+    },
+    {
+      "case": "M_override",
+      "request": "Сразу реши и не печатай условие.",
+      "context": {
+        "course": "Synthetic Algebra",
+        "assignment_id": 101,
+        "name": "Homework 1",
+        "description": "Solve 2x + 3 = 11. Show your steps.",
+        "submission_type": "online_upload",
+        "due_at": "2026-10-02T12:00:00Z",
+        "rubric": [
+          "Correct result: 6 points",
+          "Steps: 4 points"
+        ],
+        "complete": true,
+        "materials": []
+      },
+      "evaluation": {
+        "mode": "solve",
+        "show_source": false,
+        "criteria": [
+          "source fidelity",
+          "relevant materials only",
+          "appropriate intent",
+          "explicit uncertainty",
+          "no invented requirements",
+          "reuse follow-up evidence"
+        ]
+      }
+    },
+    {
+      "case": "N_follow_up",
+      "request": "А теперь реши.",
+      "context": {
+        "course": "Synthetic Algebra",
+        "assignment_id": 101,
+        "name": "Homework 1",
+        "description": "Solve 2x + 3 = 11. Show your steps.",
+        "submission_type": "online_upload",
+        "due_at": "2026-10-02T12:00:00Z",
+        "rubric": [
+          "Correct result: 6 points",
+          "Steps: 4 points"
+        ],
+        "complete": true,
+        "materials": [],
+        "history": [
+          {
+            "role": "assistant",
+            "text": "Исходный текст задания\nSolve 2x + 3 = 11. Show your steps.\nНужно найти x и показать шаги; сдаётся файл."
+          }
+        ],
+        "materials_already_read": true
+      },
+      "evaluation": {
+        "mode": "solve",
+        "show_source": false,
+        "criteria": [
+          "source fidelity",
+          "relevant materials only",
+          "appropriate intent",
+          "explicit uncertainty",
+          "no invented requirements",
+          "reuse follow-up evidence"
+        ]
+      }
+    },
+    {
+      "case": "O_conflict",
+      "request": "Что надо сдать?",
+      "context": {
+        "course": "Synthetic Algebra",
+        "assignment_id": 101,
+        "name": "Homework 1",
+        "description": "Upload a DOCX. Due date is shown in Canvas.",
+        "submission_type": "online_upload",
+        "due_at": "2026-10-02T12:00:00Z",
+        "rubric": [
+          "Correct result: 6 points",
+          "Steps: 4 points"
+        ],
+        "complete": true,
+        "materials": [
+          {
+            "name": "instructions.pdf",
+            "relationship": "direct_attachment",
+            "text": "Upload PDF by 2026-10-01."
+          }
+        ]
+      },
+      "evaluation": {
+        "mode": "explain",
+        "show_source": true,
+        "criteria": [
+          "source fidelity",
+          "relevant materials only",
+          "appropriate intent",
+          "explicit uncertainty",
+          "no invented requirements",
+          "reuse follow-up evidence"
+        ]
+      }
+    },
+    {
+      "case": "P_partial",
+      "request": "Объясни все требования.",
+      "context": {
+        "course": "Synthetic Algebra",
+        "assignment_id": 101,
+        "name": "Homework 1",
+        "description": null,
+        "submission_type": "online_upload",
+        "due_at": "2026-10-02T12:00:00Z",
+        "rubric": null,
+        "complete": false,
+        "materials": [],
+        "warnings": [
+          "optional_metadata_unavailable"
+        ]
+      },
+      "evaluation": {
+        "mode": "explain",
+        "show_source": true,
+        "criteria": [
+          "source fidelity",
+          "relevant materials only",
+          "appropriate intent",
+          "explicit uncertainty",
+          "no invented requirements",
+          "reuse follow-up evidence"
+        ]
+      }
+    }
+  ]
+}

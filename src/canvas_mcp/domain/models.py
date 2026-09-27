@@ -147,6 +147,14 @@ class Assignment:
     published: bool | None = None
     required: bool | None = None
 
+    description_redacted: bool = False
+    description_nontext_content: bool = False
+
+    @property
+    def description_verbatim(self) -> Observed[ExternalText]:
+        """One stored source body; the compatibility view must not double domain budgets."""
+        return self.description
+
 
 @dataclass(frozen=True)
 class RubricRating:

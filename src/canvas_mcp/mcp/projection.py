@@ -111,6 +111,7 @@ def envelope(
         ],
         "observed_at": _date(value.observed_at),
     }
+    _fit_assignment_output(output, min(MAX_MCP_OUTPUT_BYTES, maximum_wire_bytes))
     # FastMCP emits both a pretty JSON TextContent block and structuredContent.
     # Serialize their exact MCP result shape, allowing for JSON-RPC framing.
     pretty = to_json(output, indent=2).decode("utf-8")
@@ -122,6 +123,65 @@ def envelope(
     if wire_bytes > min(MAX_MCP_OUTPUT_BYTES, maximum_wire_bytes):
         raise BudgetExceededError()
     return output
+
+
+def _fit_assignment_output(output: McpResult, maximum: int) -> None:
+    """Fit the complete aggregate, keeping authoritative source and relationships first."""
+    data = output["data"]
+    record = data.get("assignment", data)
+    if not isinstance(record, dict) or "description_verbatim_text" not in record:
+        return
+
+    def fits() -> bool:
+        pretty = to_json(output, indent=2).decode("utf-8")
+        wire = CallToolResult(
+            content=[TextContent(type="text", text=pretty)],
+            structuredContent=cast(dict[str, Any], output),
+        )
+        return len(wire.model_dump_json().encode("utf-8")) + 1024 <= maximum
+
+    def shrink(text: dict[str, Any]) -> None:
+        original = text["text"]
+        lower, upper = 0, len(original)
+        while lower < upper:
+            middle = (lower + upper + 1) // 2
+            text["text"] = original[:middle]
+            text["truncated"] = True
+            if fits():
+                lower = middle
+            else:
+                upper = middle - 1
+        text["text"] = original[:lower]
+        text["truncated"] = True
+
+    if fits():
+        return
+    legacy = record.get("description", {}).get("value")
+    if legacy is not None:
+        shrink(legacy)
+    if fits():
+        return
+    candidates = data.get("material_candidates")
+    if candidates:
+        data["material_candidates"] = []
+        data["material_candidates_truncated"] = True
+        output["complete"] = False
+        output["warnings"].append(
+            {
+                "component": "assignment_context",
+                "code": "material_candidate_hints_omitted",
+                "course_id": None,
+            }
+        )
+    if fits():
+        return
+    source = record.get("description_verbatim_text", {}).get("value")
+    if source is not None:
+        output["complete"] = False
+        output["warnings"].append(
+            {"component": "assignment", "code": "content_truncated", "course_id": None}
+        )
+        shrink(source)
 
 
 def profile(value: Profile) -> dict[str, Any]:
@@ -178,6 +238,14 @@ def assignment_detail(value: Assignment) -> dict[str, Any]:
     return {
         **assignment_summary(value),
         "description": _observed(value.description, _text),
+        "description_verbatim_text": _observed(value.description_verbatim, _text),
+        "description_available": (
+            bool(value.description_verbatim.value and value.description_verbatim.value.text.strip())
+            if value.description_verbatim.state.value == "available"
+            else None
+        ),
+        "description_redacted": value.description_redacted,
+        "description_nontext_content": value.description_nontext_content,
         "submission_types": [_text(item) for item in value.submission_types],
         "references": _observed(value.references, lambda xs: [_material(x) for x in xs]),
         "unlock_at": _observed(value.unlock_at, _date),
@@ -270,6 +338,65 @@ def assignment_context(value: AssignmentContext) -> dict[str, Any]:
             for item in xs
         ]
 
+    candidates: list[dict[str, Any]] = []
+    seen: set[int] = set()
+
+    def candidate(
+        reference: dict[str, Any],
+        name: dict[str, Any],
+        relationship: str,
+        reason: str,
+        confidence: str,
+    ) -> None:
+        identity = reference["file_id"]
+        if identity not in seen:
+            seen.add(identity)
+            candidates.append(
+                {
+                    "file_reference": reference,
+                    "display_name": name,
+                    "relationship": relationship,
+                    "reason_for_relevance": reason,
+                    "confidence": confidence,
+                }
+            )
+
+    for item in sourced_attachments(value.attachments.value or ()):
+        candidate(
+            item["file_reference"],
+            item["display_name"],
+            "direct_attachment",
+            "Attached to this assignment record; inspect if it contains requirements.",
+            "direct",
+        )
+    for linked in value.assignment.references.value or ():
+        if linked.kind == "file" and linked.target_id is not None:
+            # An HTML link is evidence, not an assignment_attachment authorization.
+            # Course file reads still verify course membership and file access.
+            candidate(
+                {
+                    "course_id": _entity(value.course.id),
+                    "file_id": _entity(linked.target_id),
+                    "source_kind": "course_file",
+                    "source_id": None,
+                    "module_id": None,
+                },
+                _text(linked.label),
+                "assignment_link",
+                "Referenced by this assignment body; file contents have not been inspected.",
+                "direct",
+            )
+    for sequence in value.module_context.value or ():
+        for neighbor in (sequence.previous_item, sequence.next_item):
+            if neighbor and neighbor.kind == "file" and neighbor.target_id is not None:
+                projected = module_item(neighbor)
+                candidate(
+                    projected["file_reference"],
+                    projected["name"],
+                    "module_neighbor",
+                    "Immediately adjacent to this assignment in its module; adjacency alone does not establish relevance.",
+                    "structural_candidate",
+                )
     return {
         "course": course(value.course),
         "assignment": assignment_detail(value.assignment),
@@ -277,6 +404,8 @@ def assignment_context(value: AssignmentContext) -> dict[str, Any]:
         "rubric": _observed(value.rubric, lambda xs: [_criterion(x) for x in xs]),
         "attachments": _observed(value.attachments, sourced_attachments),
         "module_context": _observed(value.module_context, lambda xs: [_sequence(x) for x in xs]),
+        "material_candidates": candidates,
+        "material_discovery_complete": False,
     }
 
 

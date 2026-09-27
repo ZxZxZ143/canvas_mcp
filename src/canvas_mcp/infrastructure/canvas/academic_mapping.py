@@ -31,6 +31,7 @@ from canvas_mcp.domain.models import (
 )
 from canvas_mcp.infrastructure.canvas.mapping import _object, course, entity_id
 from canvas_mcp.infrastructure.canvas.text import inert_text
+from canvas_mcp.infrastructure.canvas.assignment_text import assignment_visible_text
 
 T = TypeVar("T")
 
@@ -292,11 +293,6 @@ def assignment(
         raw, "submission", lambda item: submission(item, course_id, identity, subject, required)
     )
     # Missing embedded submission means unknown, never "not submitted".
-    desc = (
-        observed(raw, "description", content)
-        if detail
-        else Observed[ExternalText](Availability.NOT_REQUESTED, None)
-    )
     refs = (
         references(raw.get("description"), origin, course_id)
         if detail and "description" in raw
@@ -304,6 +300,19 @@ def assignment(
             Availability.NOT_REQUESTED if not detail else Availability.UNAVAILABLE, None
         )
     )
+    verbatim = Observed[ExternalText](
+        Availability.UNAVAILABLE if detail else Availability.NOT_REQUESTED, None
+    )
+    redacted = False
+    nontext = False
+    if detail and "description" in raw:
+        if raw["description"] is None:
+            verbatim = Observed(Availability.AVAILABLE, None)
+        else:
+            if not isinstance(raw["description"], str):
+                raise MalformedUpstreamError()
+            visible, redacted, nontext = assignment_visible_text(raw["description"])
+            verbatim = Observed(Availability.AVAILABLE, visible)
     rub = (
         observed(raw, "rubric", rubric)
         if detail
@@ -317,7 +326,7 @@ def assignment(
         identity,
         course_id,
         title(raw.get("name")),
-        desc,
+        verbatim,
         observed(raw, "due_at", timestamp),
         observed(raw, "points_possible", number),
         types,
@@ -331,6 +340,8 @@ def assignment(
         flag(raw, "can_submit"),
         flag(raw, "published"),
         required,
+        redacted,
+        nontext,
     )
 
 
