@@ -59,6 +59,7 @@ def main() -> None:
             "gb18030",
             "cp950",
             "cp932",
+            "cp437",
         ):
             codecs.lookup(encoding)
         with os.fdopen(fd, "rb", closefd=False) as stream:

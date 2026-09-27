@@ -130,11 +130,13 @@ def test_actual_authorized_download_extraction_and_no_locators(content_stack, tm
                 TOKEN,
                 CAPABILITY,
                 "PRIVATE_SIGNED_QUERY",
-                "public_url",
                 "local_path",
                 str(tmp_path),
             ):
                 assert forbidden not in json.dumps(output) + s.logs.getvalue()
+            # The logger's allowlisted operation name files.public_url is safe;
+            # the infrastructure-private capability value/field never serializes.
+            assert "public_url" not in json.dumps(output)
             assert not list(tmp_path.iterdir())
 
     asyncio.run(run())
@@ -274,15 +276,17 @@ def test_concurrent_calls_are_serialized_with_distinct_artifacts_and_queue_cance
 
     async def run():
         async with content_stack(calls=2) as (s, manager, service, pool):
+            second_ctx = replace(s.ctx, budget=replace(s.ctx.budget), courses={})
+            queued_ctx = replace(s.ctx, budget=replace(s.ctx.budget), courses={})
             first = asyncio.create_task(
                 service.get_file_content(s.ctx, REFERENCE, ContentSelection())
             )
             await entered.wait()
             second = asyncio.create_task(
-                service.get_file_content(s.ctx, REFERENCE, ContentSelection())
+                service.get_file_content(second_ctx, REFERENCE, ContentSelection())
             )
             queued = asyncio.create_task(
-                service.get_file_content(s.ctx, REFERENCE, ContentSelection())
+                service.get_file_content(queued_ctx, REFERENCE, ContentSelection())
             )
             await asyncio.sleep(0.02)
             queued.cancel()
