@@ -1,7 +1,9 @@
 # Phase 6.5 — assignment intelligence and response UX
 
-Status: implementation and independent review complete; final regression/deployment
-and small Web/mobile product checks in progress. Canvas remains read-only. No Phase 7.
+Status: VALIDATION PENDING. Implementation, regression, installation, independent
+review, Render deployment and Web explain/follow-up checks are complete. Native
+mobile evidence is pending the user's device check. Canvas remains read-only.
+No Phase 7.
 
 ## Behavior architecture
 
@@ -107,9 +109,38 @@ that upstream bound. 15/20-attachment domain contexts remain accepted.
   no credential output. The project runtime and existing personal plugin skills were
   updated from this same validated wheel/portable package; all three copied skill files
   were checked byte-for-byte.
-- Render Linux verification/deployment: pending.
-- Live Web explain/follow-up: pending.
+- Render Linux verification: 106 passed, one dependency deprecation warning, 14.38s.
+  Deployment dep-dasnmnd9fdbs73e8sbt0 succeeded on the existing Free service at
+  2026-09-28 01:24:58 GMT+5; source 2bd0bee32c5e81bafd480213d46959ae7a108e52.
+- Public remote smoke: health 200, OAuth resource discovery 200 with canvas:read,
+  unauthenticated MCP request 401. Existing connected ChatGPT account performs
+  authenticated reads without a new OAuth consent or credentials.
+- Live Web explain: one conversation, assignment body known empty; used the same-module
+  matching homework PDF, explained requirements/deliverables without solving, kept
+  visual/native extraction and OCR transition-table limitations visible.
+  Actual server-observed tool calls: course list, assignment list, assignment context,
+  file content twice (second call after the native attachment approval), five total.
+  Both reads are of the relevant homework file; resources/read returned 200. The cause
+  of the second content call is not established. A card was not visible in the final
+  explanation; no host acceptance/download success is claimed from that resource read alone.
+- Live Web follow-up solve: passed in the same conversation; provided both component
+  DFAs, the correct 12-state intersection DFA with transition table/diagram and sample
+  accepted/rejected words for 1.4(a). Compared the stated language with the rendered
+  original page, without executing coursework code or fetching document links.
+  No new Canvas tool calls, no repeated source section or duplicate original card.
+  Native Homework-1.pdf preview references appeared in the solution. The first
+  response took 1m59s, follow-up 47s according to the host UI.
+  The sidebar reported a history-load error; the current conversation continued.
+  No 429/Too many requests signal was present in available page error logs.
+- Web evidence: [Объяснение задания Homework 1](https://chatgpt.com/c/6ab97bd1-86e0-83ed-9351-ab18776d4b20).
+  This real assignment has no Canvas body: literal nonempty body reproduction is
+  established by source-conversion regression and synthetic model cases, not falsely
+  claimed as a real Web quote in this empty-description case.
 - Native mobile explain/material/native-file behavior: pending actual user/device check.
+  Requested one fresh conversation in the existing Canvas Student Remote Persistent
+  native app connection: explain Homework-1 from Theory of Computation without a
+  full solution and show the original PDF. The browser tool cannot control the phone;
+  responsive desktop emulation is not claimed as native mobile evidence.
 
 Only small sequential live host tests are planned. Stop on renewed Too many requests;
 no mass conversation creation, stress test or unsupported claim about IP blocking.
