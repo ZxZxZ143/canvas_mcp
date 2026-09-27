@@ -49,6 +49,26 @@ def test_scanned_and_hybrid_pdf_use_real_ocr_in_page_order(tmp_path):
     assert result["extraction_mode"] == "hybrid" and result["ocr_pages"] == [2]
 
 
+def test_actual_exif_phone_jpeg_in_fresh_sealed_worker(tmp_path):
+    import io
+    from PIL import Image
+
+    with Image.open(io.BytesIO(image_bytes("PNG"))) as image:
+        exif = Image.Exif()
+        exif[270] = "Synthetic phone photo metadata"
+        stream = io.BytesIO()
+        image.save(stream, format="JPEG", exif=exif, quality=95)
+    body = stream.getvalue()
+    # Remove the generated JFIF APP0 segment so Pillow reads EXIF DPI metadata.
+    assert body[:4] == b"\xff\xd8\xff\xe0"
+    length = int.from_bytes(body[4:6], "big")
+    body = body[:2] + body[4 + length :]
+    result = asyncio.run(parse(tmp_path, body, "jpg"))
+    assert "report" in result["units"][0]["text"].lower()
+    assert result["extraction_mode"] == "ocr"
+    assert not list(tmp_path.iterdir())
+
+
 def test_native_pdf_with_engine_loaded_preserves_original_text(tmp_path):
     text = "Write an explanation about finite automata and regular languages. " * 3
     result = asyncio.run(parse(tmp_path, pdf_bytes((text,)), "pdf"))

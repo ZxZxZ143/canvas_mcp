@@ -8,7 +8,7 @@ import io
 import math
 from typing import Any
 
-from PIL import Image, PngImagePlugin, JpegImagePlugin, WebPImagePlugin
+from PIL import Image, PngImagePlugin, JpegImagePlugin, WebPImagePlugin, TiffImagePlugin
 import pypdfium2 as pdfium  # type: ignore[import-untyped]
 
 from canvas_mcp.domain.file_content import (
@@ -17,8 +17,10 @@ from canvas_mcp.domain.file_content import (
     OCR_MAX_SOURCE_PIXELS,
 )
 
-# Import only supported codecs before deny-open; do not Image.init() arbitrary plugins.
-_CODECS = (PngImagePlugin, JpegImagePlugin, WebPImagePlugin)
+# Fixed supported codecs and JPEG/PNG EXIF metadata support before deny-open.
+# TIFF input remains excluded by the exact signature/format/factory whitelist.
+# Never Image.init() arbitrary plugins.
+_TRUSTED_IMAGE_MODULES = (PngImagePlugin, JpegImagePlugin, WebPImagePlugin, TiffImagePlugin)
 Image.MAX_IMAGE_PIXELS = OCR_MAX_SOURCE_PIXELS
 
 
