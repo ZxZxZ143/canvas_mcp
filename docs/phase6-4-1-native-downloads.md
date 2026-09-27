@@ -1,6 +1,11 @@
 # Phase 6.4.1 — automatic native originals
 
-Chosen approach: **HOST-NATIVE FILE CARD**. Product verification is in progress.
+Chosen approach: **HOST-NATIVE FILE CARD**. Source verification passed; product
+verification is partially complete and paused because ChatGPT loading is unstable.
+Candidate source: `3e3a604bb1ed69931cb7dba3741fbfb8ec76ad8a`; deployed and source-tested.
+A precautionary rollback to the previously manually verified `c153768` completed,
+then the existing successful native image was restored. Current source is 3e3a604;
+the full deployment history and product evidence are recorded below.
 Phase 6.4 itself is complete on the user's later manual replay/download evidence.
 
 ## Supported representation and synthetic experiment
@@ -86,14 +91,103 @@ must work after handoff expiry/container restart, without Canvas refetch.
 
 ## Validation so far
 
-- Full Windows pytest: 1449 passed, 56 Linux-only skipped, two existing warnings,
-  256.33 seconds. Added concurrency/aggregate cases are checked in the final focused run.
-- Mypy: 88 source files; Ruff check and format check passed.
+- Final full Windows pytest: 1451 passed, 56 Linux-only skipped, two existing warnings,
+  263.28 seconds, including the added concurrency/aggregate cases.
+- Final focused remote MCP/OAuth/retained UI/native transfer suite: 191 passed,
+  one existing warning, 20.38 seconds. Includes new aggregate and slow-send cases.
+- Actual Render Linux Docker verification: 106 passed, one existing warning,
+  13.43 seconds, including same-download original snapshot and reading above 4 MiB.
+- Mypy: 88 source files; Ruff check and format check passed (155 source/test files).
 - Wheel build/install/pip check passed; all 88 source/wheel/installed Python files
   matched exactly. Installed-wheel live stdio initialize, 15 tools, profile/courses passed.
 - Independent read-only inline-file-ux-reviewer and file-transfer-security-reviewer:
   no unresolved Critical/High findings. Availability wording corrected; actual host
   acceptance/download/persistence must still be verified separately.
 
-Real text/OCR/image, normal follow-up, replay, restart, downloaded-original integrity,
-and timing evidence will be recorded after the deployment checks. Phase 7 is not started.
+## First real native result and rate-limit interruption
+
+The real `Homework-1.pdf` page-1 analysis produced a native host attachment and
+the correct three-page PDF preview automatically, without canvas_download_file.
+ChatGPT reported 14 seconds of processing; the native resource read was HTTP 200,
+4 ms in the safe Render log. The assistant omitted the extraction_mode field;
+source and independent SDK review confirm it is present in JSON text and structured
+content at `data.content.extraction_mode`. Its omission is not evidence of a missing
+server field. Host auto-preview opened; it was closed before further tests.
+
+Reopening that chat failed, then ordinary non-Canvas chats also failed. The user
+reproduced the sequence in another window and later on mobile/web observed
+`Too many requests` in the server response. A newly created plain no-plugin chat
+also failed after reload, while the official desktop read_thread returned its saved
+one-word conversation successfully. Reading the native test chat returned
+`Too many requests`. This is positive rate-limit evidence, not an established
+native/schema/size/URI root cause. Do not describe these failures as proof that
+native files corrupt conversations, or reclassify the earlier manually completed
+Phase 6.4 based solely on this rate-limited run.
+
+ChatGPT browser/API requests were stopped and the four new test tabs closed to
+reduce background traffic. The precautionary Free Render rollback was still building
+at the last check; it must not be claimed Live prematurely. Candidate source remains committed for controlled verification after
+the account recovers. No undocumented host API, cookie/session extraction, security
+weakening or deletion of user conversations was used.
+
+The native synthetic card at 390px width remained compact with an accessible
+Download button in the tree. Native host visual treatment/hover behavior is host
+controlled; no internal CSS was copied. The viewport override was reset.
+
+At the point of the interruption, the additional product checks remained pending.
+Subsequent recovery evidence is recorded below. Active
+course file listings inspected for a real standalone image contained no image
+files; this does not imply that all possible assignment/module sources are empty.
+No Canvas write or fabricated original is used to fill that test gap. Phase 7 is not started.
+
+### Recovery and real-original integrity
+
+After ten minutes without ChatGPT browser/API traffic, one fresh load of the plain
+no-plugin control conversation succeeded. One load of the existing native PDF
+conversation also succeeded: its explanation and native inline card remained.
+The earlier replay failures therefore are not an established native-file defect.
+No retry loop or private ChatGPT endpoint was used.
+
+The inline Download action was clicked with no preview panel open. The user saved
+the Windows Save As dialog to Downloads. The newly saved `Homework-1.pdf` timestamp
+was `2026-09-27T19:15:30.4050583Z`; it contains 519944 bytes, three PDF pages and
+SHA-256 `d617512c7c5a3a1b84a0efb8be5b00b3896c9e979a28ed7d451b8514364da193`,
+all matching the previously validated Canvas original. This is a new native download,
+not the earlier Phase 6.4 copy. The native registry's 300-second lifetime had elapsed
+long before this replay/download, demonstrating independence from that memory entry.
+Browser-download-start timing cannot be measured reliably across the user-operated
+OS save dialog; one inline browser click plus OS Save confirmation was observed.
+
+The precautionary rollback did reach Live at 19:13:48 UTC despite the attempted
+cancel, replacing candidate 3e3a604 with c153768. Restoration of the previously
+successful candidate image completed at 19:17:49 UTC in deployment
+`dep-dasmnhh7lnhs739sfj50`. Render reported no configuration changes; the source
+is again 3e3a604. This used the existing Free service without a plan change.
+Do not claim an after-restart download request from the saved file's completion
+timestamp alone; the actual click preceded the final rollback status observation.
+
+One follow-up in the existing PDF conversation produced its requested short
+explanation without a tool activity or additional file card. This verifies normal
+reuse for that controlled case, not enforced conversation-wide deduplication.
+
+A subsequent replay after the container restoration again displayed ChatGPT's
+generic conversation-load error. No immediate retry, native probe or additional
+ChatGPT API read was attempted. The test tab was closed. The earlier directly
+observed Too many requests response remains rate-limit evidence; the generic
+later failure does not independently establish its HTTP status or a file defect.
+
+### Remaining product checks
+
+- ChatGPT OCR result plus automatic original on the current native build.
+- ChatGPT standalone image OCR plus automatic original when a real Canvas image
+  is available (the bounded active-course file listings found none).
+- A new download request made after a confirmed container restart; saving an
+  already-open OS download dialog afterward is insufficient evidence.
+- Stable repeated manual replay after the account's request restriction clears.
+- An actually stale host download URL/fresh URL test, if its expiry is observable
+  through supported host behavior. Server handoff expiry already passed, but it is
+  not the same as host download URL expiry.
+- Precise browser-download-start timing beyond the Windows Save As handoff.
+
+Phase 6.4 remains complete on the user's prior manual evidence. Phase 6.4.1 is
+not marked complete while these product checks are unresolved; no Phase 7 work starts.

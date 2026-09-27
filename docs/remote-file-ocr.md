@@ -48,7 +48,7 @@ remaining native pages and reports partial coverage through limitations/truncate
 | Extracted Unicode characters | 16,000 |
 | Text MCP result | 131,072 bytes, including duplicated SDK payload/framing |
 | Ordinary HTTP result capture, including preparation | 262,144 bytes |
-| App-only byte transport result | 5,700,000 bytes, including hidden base64 payload/framing |
+| Exact native resource read / retained app-only byte transport | 5,700,000 bytes, including binary base64/framing |
 
 One shared gate serializes downloads and parser work. Large embedded PDF images
 remain constrained by the address-space and CPU limits even when output pixels are
@@ -79,7 +79,25 @@ open/openat, sockets/connect, exec/fork/clone and artifact writes remain denied.
 The worker is killed and reaped before staging is closed on timeout/cancellation.
 Private anchored temporary directories are removed in finally on every outcome.
 
-## Original-file card
+## Automatic native original
+
+Phase 6.4.1 `canvas_get_file_content` also prepares an original within 4 MiB from
+the same validated read-only download used by the parser/OCR. It returns a standard
+MCP ResourceLink beside bounded text and structured metadata. ChatGPT ingests a
+separate authenticated binary resource and renders its native inline file card.
+Original bytes are absent from model-visible tool content and structuredContent.
+List/metadata tools remain data-only; no custom UI or file-library save is requested.
+
+The exact opaque resource is bound to the current subject/Canvas connection. An
+unlisted memory registry holds at most two entries and 4 MiB aggregate, with a real
+300-second abandonment expiry and a bounded 10-second successful-delivery retry
+grace. Staging is already cleaned before the tool result leaves. Publication and
+resource delivery are independently guarded against reflected credentials and
+rolled back on failed send/cancellation. Host acceptance is separate from preparing
+the reference. See [phase6-4-1-native-downloads.md](phase6-4-1-native-downloads.md)
+for transfer invariants and actual ChatGPT product evidence.
+
+## Retained explicit original-file card
 
 canvas_download_file uses a separate remote DTO, never the stdio path descriptor.
 The model's preparation result uses the ordinary McpResult structured-output path
