@@ -7,11 +7,11 @@ Canvas Student is a personal, read-only Canvas LMS integration for Codex. A loca
 | Item | State |
 | --- | --- |
 | Version | 0.1.0 |
-| Deployment | Personal plugin and local stdio MCP |
+| Deployment | Personal local stdio plugin and Auth0-protected Render Free HTTP MCP |
 | Canvas access | Read-only |
-| Tested platform | Windows |
+| Tested platform | Windows local; Linux remote |
 | Live-tested installation | Narxoz University Canvas |
-| Remote file content | Phase 6.3 implemented; live verification pending |
+| Remote file content | Supported: bounded PDF, DOCX, PPTX, TXT, MD, CSV and JSON text |
 | Remote durable download | Not exposed |
 
 The stable plugin is a local, single-user installation. Phase 6.1 adds a Streamable HTTP adapter with default-deny authentication. Phase 6.2 has a personal Auth0-protected Render Free deployment connected to ChatGPT Web, with real Canvas queries and post-idle recovery verified. See [actual remote deployment status](docs/phase6-2-render-deployment.md) and the [HTTP architecture guide](docs/phase6-remote-mcp.md).
@@ -50,7 +50,7 @@ The capability URL is not returned by MCP. The downloaded artifact remains `trus
 
 ## MCP tools
 
-All 15 tools read Canvas. Only `canvas_download_file` creates a managed local file, and the personal Codex configuration prompts for approval before that call.
+All 15 local stdio tools read Canvas. Only `canvas_download_file` creates a managed local file, and the personal Codex configuration prompts for approval before that call.
 
 | Tool | Purpose | Canvas mutation? | Local side effect? |
 | --- | --- | --- | --- |
@@ -226,8 +226,8 @@ tests/                   unit, contract, integration and security tests
 
 ## Known limitations
 
-Canvas access is read-only: there is no assignment submission, upload, comment, grade change or enrollment change. The HTTP adapter supports a personal Auth0 resource server. Render Free Web Service is deployed and linked to ChatGPT Web; real Canvas smoke, profile, courses, upcoming and assignment context passed. After more than 16 idle minutes, a new container and fresh Canvas queries were verified following manual OAuth reconnect. This is a personal beta with sleep delays and expiring login, not an always-on service. See [Render setup and actual status](docs/phase6-2-render-deployment.md) and [resource-server architecture and historical Railway evaluation](docs/phase6-2-remote-personal.md). Remote downloads, multi-user deployment, and public marketplace publication are unavailable. Secure local credential and file storage are Windows-first. The local plugin configuration is Narxoz-specific, and another same-user process can access its Windows generic credential.
+Canvas access is read-only: there is no assignment submission, upload, comment, grade change or enrollment change. The personal Auth0-protected Render Free service is linked to ChatGPT Web. Real profile, courses, upcoming, assignment context and remote PDF text reading passed. Remote file content is bounded text only: no OCR/images, Office rendering or durable remote download. Image-based formulas and diagrams require a later capability; ChatGPT reports these omissions. Free sleep delays and expiring login remain, so this personal beta is not always-on. See [remote file limits and actual evidence](docs/phase6-3-remote-files.md), [Render setup](docs/phase6-2-render-deployment.md) and [resource-server architecture](docs/phase6-2-remote-personal.md). Multi-user deployment and public marketplace publication are unavailable. Secure local credential and file storage remain Windows-first. The local plugin configuration is Narxoz-specific, and another same-user process can access its Windows generic credential.
 
 ## Roadmap
 
-The [roadmap](docs/roadmap.md) reserves Phase 6.3 for remote files, Phase 6.4 for an optional mobile companion, Phase 7 for safe Canvas writes and Phase 8 for a public multi-user plugin. Those capabilities are unavailable; Phase 6.3 does not begin automatically.
+Phase 6.3 implements remote file text content; its final evidence is in the [remote file guide](docs/phase6-3-remote-files.md). The [roadmap](docs/roadmap.md) reserves Phase 6.4 for an optional mobile companion, Phase 7 for safe Canvas writes and Phase 8 for a public multi-user plugin. Those later capabilities are unavailable, and Phase 6.4 does not begin automatically.

@@ -1,6 +1,7 @@
 # Phase 6.3: remote file content
 
-Status: implemented; final deployment and real ChatGPT evidence pending. Phase 6.4 has not started.
+Status: COMPLETE. Deployed real ChatGPT file reading, manual content comparison and
+post-idle file recovery are verified. Phase 6.4 has not started.
 
 ## Transport contract
 
@@ -172,22 +173,92 @@ deny-open/deny-exec, hash mismatch, timeout/repeated cancellation and cleanup.
 Concurrent calls verify distinct scopes, one reader and cancellation in the queue.
 
 Final test totals, deployed image evidence, real ChatGPT content comparison and
-post-idle file retry will be recorded after their actual execution. No real coursework
+post-idle file retry below record actual execution. No real coursework
 payloads, private identity, credentials, signed URLs or local downloaded files are
 committed to this repository.
 
 Local verification: 1,392 tests passed, 35 Linux-only checks skipped on Windows,
-340.44 seconds. Two nonfailure warnings are the upstream Starlette/httpx TestClient
+239.76 seconds in the final rerun after the Linux codec fix. Two nonfailure warnings
+are the upstream Starlette/httpx TestClient
 deprecation and pypdf's synthetic active-action fixture API deprecation. Mypy passed
 81 source files; Ruff check and format check passed. Sdist/wheel built and installed
 into an independent virtualenv: 81 source/installed Python files byte-identical,
-80 isolated module imports, 11 CLI help paths and local15/remote15 surfaces passed.
+80 isolated module imports, 11 CLI help paths and local 15/remote 15 surfaces passed.
 Both dependency checks passed, and all four changed source skills passed the
 skill-creator frontmatter validator. The local Docker daemon did not answer its
-version probe; mandatory synthetic Linux build checks will run on Render.
+version probe; mandatory synthetic Linux build checks ran on Render instead.
+
+Render Docker verification passed all 78 checks in 5.25 seconds under UID/GID
+10001:10001, including actual sandboxed readers for all seven formats, Unicode
+ToUnicode PDF codepoint 1046, denied network/open/exec/write, repeated cancellation,
+directory replacement, reflected-capability rejection, bounded streams and concurrent
+request cleanup. The first build correctly failed closed (74 passed, four failures):
+Office ZIP decoding required preloading fixed `cp437` before lockdown, one secrecy
+assertion confused a safe operation name with a URL value, and a concurrent test
+reused request-local course state. The corrected build retained every test and syscall
+restriction. The runtime image copies only the production virtualenv, excluding its
+build-only test dependencies and `/verify` fixtures. Local Docker image size inspection
+was unavailable; no exact deployed image-byte measurement is claimed.
+
+Live deployment: `dep-dasg0rbncjis73b84iug`, application commit
+`d996d8c050ddb37ece480c2adace0643c615bea8`, Live at 2026-09-27 11:42:57 UTC.
+Existing service `srv-dasdor60tbcc73evk93g`, same
+`https://canvas-student-mcp-z70n.onrender.com/mcp`, Free Docker/one instance and unchanged
+OAuth/Canvas environment. ChatGPT OAuth was restored through existing SSO and
+Update tools rediscovered **Read15**, including `canvas_get_file_content` and
+excluding `canvas_download_file`.
+
+The unchanged installed local plugin separately initialized over real stdio,
+listed 15 tools, and returned real profile/courses successfully. Its local metadata
+and managed download retrieved the comparison PDF independently of Render.
 
 ## Live evidence
 
-Pending deployment, refreshed 15-tool discovery, actual assignment-related file
-explanation, manual source comparison and cold-start file retry. Phase 6.3 is not
-marked complete until those succeed.
+Real ChatGPT Web successfully used the sequence `canvas_get_upcoming` →
+`canvas_get_assignment_context` → `canvas_get_file_metadata` →
+`canvas_get_file_content`. It selected a PDF from the next File item in the verified
+assignment's module, read all three pages and explained the available textual
+requirements without any user upload. File size was 519,944 bytes; full SHA-256
+matched an independently retrieved local managed artifact. The response reported
+`truncated=false`, `content_available=true`, three processed pages and the image/OCR
+omission. It distinguished the Canvas submission/deadline facts from file text.
+Render recorded `canvas_get_file_content` HTTP200/ok at 11:50:28 UTC, 9,677ms,
+on instance `qxqcx`, with no payload or capability in the log.
+
+Manual comparison rendered and inspected all three actual PDF pages with Poppler,
+separately from the production reader. Page headings and code/output deliverable
+instructions matched. The document contains many formulas and diagrams as images:
+the remote text correctly omitted those, and ChatGPT explicitly said it could not
+reconstruct their conditions. Page three has visible image material but no extracted
+text; the answer correctly described its text as empty, not the page as blank.
+This validates the text-only scope and its practical limit, not OCR capability.
+
+## Post-idle file recovery
+
+After the last file call at 11:50:28 UTC, a conservative idle window began at
+11:51:45 UTC. No agent-initiated service probes, discovery or tool requests were
+sent until after 12:07:46 UTC (>16 minutes). Render's own health checks are platform
+traffic, not an added keepalive. The first ChatGPT attempt reported expired OAuth;
+the existing Auth0 SSO flow restored the same client, user and scope without new
+credentials or permissions. Reconnection performed MCP initialization and a profile
+check before file reading.
+
+Render logs then showed a new instance `fhznq`, replacing `qxqcx`, with fresh
+initialization at 12:09:35 UTC. The new `canvas_get_file_content` call completed
+HTTP200/ok at 12:09:54 UTC in 9,708ms. Fresh course, module-item and file checks,
+the authenticated capability lookup and anonymous download all ran again. The
+returned SHA-256 matched the original and the independent local copy: 519,944 bytes,
+three pages, `truncated=false`, `content_available=true`, with the same explicit
+image/OCR omission and matching textual requirements. A subsequent explicit retry
+completed HTTP200/ok at 12:10:08 UTC in 9,311ms and produced a fresh successful
+ChatGPT answer.
+
+The 9.7-second measurement is the file call after OAuth/instance recovery, not an
+isolated Render wake-up benchmark. The observed recovery included expired-session
+handling and service startup. A new container successfully reading the same verified
+reference demonstrates that no previous ephemeral path or parser state is required.
+No persistent file cache, background polling or keepalive was introduced.
+
+The branch's final documentation-only commit records this evidence. Auto Deploy
+remains off, so the live application/image stays at `d996d8c050ddb37ece480c2adace0643c615bea8`;
+documentation changes do not trigger another service rollout.
