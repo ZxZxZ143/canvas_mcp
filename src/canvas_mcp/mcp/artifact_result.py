@@ -14,7 +14,9 @@ from canvas_mcp.mcp.projection import envelope, file_reference
 MAX_ARTIFACT_WIRE_BYTES = 5_700_000
 
 
-def artifact_result(value: Result[RemoteArtifact]) -> CallToolResult:
+def artifact_result(
+    value: Result[RemoteArtifact], *, include_original: bool = True
+) -> CallToolResult:
     artifact = value.data
     size = len(artifact.data)
     if (
@@ -42,7 +44,14 @@ def artifact_result(value: Result[RemoteArtifact]) -> CallToolResult:
         ],
         structuredContent=dict(output),
         _meta={
-            "canvasArtifact": {**info, "base64": base64.b64encode(artifact.data).decode("ascii")}
+            "canvasArtifact": {
+                **info,
+                **(
+                    {"base64": base64.b64encode(artifact.data).decode("ascii")}
+                    if include_original
+                    else {}
+                ),
+            }
         },
     )
     if len(result.model_dump_json().encode("utf-8")) + 1024 > MAX_ARTIFACT_WIRE_BYTES:

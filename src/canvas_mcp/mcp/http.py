@@ -317,7 +317,8 @@ class HttpBoundary:
                         # exact wire cap. Keep the existing cap for every other call.
                         maximum = (
                             5_700_000
-                            if operation == "tools/call" and tool == "canvas_download_file"
+                            if operation == "tools/call"
+                            and tool == "canvas_fetch_original_for_card"
                             else 262_144
                         )
                         if response_size > maximum:
@@ -365,7 +366,7 @@ class HttpBoundary:
                                 ]
                     except (ValueError, TypeError):
                         pass
-                    if operation == "tools/call" and tool == "canvas_download_file":
+                    if operation == "tools/call" and tool == "canvas_fetch_original_for_card":
                         presented = (
                             authorization[0].split(b" ", 1)[-1].decode("latin1")
                             if self.oauth and authorization

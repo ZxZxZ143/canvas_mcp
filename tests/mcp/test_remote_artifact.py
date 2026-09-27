@@ -30,9 +30,13 @@ class Connection(FakeConnection):
         return result(ARTIFACT)
 
 
-def test_actual_tool_preserves_hidden_bytes_and_exposes_no_location():
+def test_prepare_is_compact_and_ui_only_fetch_preserves_hidden_original():
     server = create_server(Connection(), None, transport="http")
-    output = asyncio.run(server.call_tool("canvas_download_file", {"course_id": 8, "file_id": 50}))
+    args = {"course_id": 8, "file_id": 50}
+    prepared = asyncio.run(server.call_tool("canvas_download_file", args))
+    assert "base64" not in prepared.model_dump_json()
+    assert len(prepared.model_dump_json().encode()) < 4096
+    output = asyncio.run(server.call_tool("canvas_fetch_original_for_card", args))
     assert isinstance(output, CallToolResult)
     assert base64.b64decode(output.meta["canvasArtifact"]["base64"]) == BODY
     visible = json.dumps(output.structuredContent) + repr(output.content)
@@ -45,6 +49,18 @@ def test_actual_tool_preserves_hidden_bytes_and_exposes_no_location():
     assert download.outputSchema["type"] == "object"
     assert download.inputSchema["additionalProperties"] is False
     assert download.annotations.destructiveHint is False
+    fetch = next(tool for tool in tools if tool.name == "canvas_fetch_original_for_card")
+    assert fetch.meta["ui"] == {"visibility": ["app"]}
+    assert fetch.meta["openai/visibility"] == "private"
+    assert fetch.meta["openai/widgetAccessible"] is True
+    assert "openai/outputTemplate" not in fetch.meta
+    assert {key: value for key, value in fetch.inputSchema.items() if key != "title"} == {
+        key: value for key, value in download.inputSchema.items() if key != "title"
+    }
+    local = create_server(Connection(), None)
+    assert "canvas_fetch_original_for_card" not in {
+        tool.name for tool in asyncio.run(local.list_tools())
+    }
 
 
 def test_invalid_hash_empty_or_oversized_payload_never_creates_artifact():
@@ -55,6 +71,27 @@ def test_invalid_hash_empty_or_oversized_payload_never_creates_artifact():
     ):
         with pytest.raises(FileParseError):
             artifact_result(result(changed))
+
+
+def test_app_only_fetch_still_requires_auth_and_rejects_non_reference_inputs():
+    opened = []
+
+    @asynccontextmanager
+    async def factory():
+        opened.append(True)
+        yield Connection()
+
+    with client(factory=factory) as connection:
+        name = "canvas_fetch_original_for_card"
+        denied = rpc(connection, "tools/call", {"name": name, "arguments": {}}, headers={})
+        assert denied.status_code == 401 and not opened
+        for bad in (
+            {"course_id": 8, "file_id": 50, "url": "https://example.invalid/private"},
+            {"course_id": 8, "file_id": 50, "path": "/etc/passwd"},
+            {"course_id": True, "file_id": 50},
+        ):
+            rejected = rpc(connection, "tools/call", {"name": name, "arguments": bad})
+            assert rejected.json()["result"]["isError"] and not opened
 
 
 def test_maximum_original_has_bounded_exact_wire_and_still_hidden():
@@ -84,6 +121,8 @@ def test_saved_card_reference_survives_upgrade_without_expanding_resources():
     assert saved.mime_type == current.mime_type == "text/html;profile=mcp-app"
     assert saved.meta == current.meta
     assert saved.meta["ui"]["csp"] == {"connectDomains": [], "resourceDomains": []}
+    previous = list(asyncio.run(server.read_resource("ui://canvas/original-file-v2.html")))[0]
+    assert previous.content == current.content and previous.meta == current.meta
     tools = asyncio.run(server.list_tools())
     download = next(tool for tool in tools if tool.name == "canvas_download_file")
     assert download.meta["ui"]["resourceUri"] == ARTIFACT_URI != old_uri
@@ -91,7 +130,7 @@ def test_saved_card_reference_survives_upgrade_without_expanding_resources():
         asyncio.run(server.read_resource("ui://canvas/unknown-file.html"))
     local = create_server(Connection(), None)
     assert asyncio.run(local.list_resources()) == []
-    for uri in (old_uri, ARTIFACT_URI):
+    for uri in (old_uri, "ui://canvas/original-file-v2.html", ARTIFACT_URI):
         with pytest.raises(Exception, match="Unknown resource"):
             asyncio.run(local.read_resource(uri))
 
@@ -110,16 +149,27 @@ def test_actual_http_endpoint_accepts_bounded_hidden_original(size):
         yield Sized()
 
     with client(factory=factory) as connection:
-        response = rpc(
+        prepared = rpc(
             connection,
             "tools/call",
             {"name": "canvas_download_file", "arguments": {"course_id": 8, "file_id": 50}},
+        )
+        assert prepared.status_code == 200 and not prepared.json()["result"].get("isError")
+        assert "base64" not in prepared.text and len(prepared.content) < 4096
+        response = rpc(
+            connection,
+            "tools/call",
+            {
+                "name": "canvas_fetch_original_for_card",
+                "arguments": {"course_id": 8, "file_id": 50},
+            },
         )
         assert response.status_code == 200
         output = response.json()["result"]
         assert not output.get("isError")
         assert base64.b64decode(output["_meta"]["canvasArtifact"]["base64"]) == body
         assert output["structuredContent"]["data"]["sha256"] == artifact.sha256
+        assert prepared.json()["result"]["structuredContent"] == output["structuredContent"]
 
 
 def test_ordinary_http_tool_keeps_previous_response_cap():
@@ -187,7 +237,10 @@ def test_actual_oauth_endpoint_rejects_credentials_hidden_in_original(encoding, 
         response = rpc(
             connection,
             "tools/call",
-            {"name": "canvas_download_file", "arguments": {"course_id": 8, "file_id": 50}},
+            {
+                "name": "canvas_fetch_original_for_card",
+                "arguments": {"course_id": 8, "file_id": 50},
+            },
             headers(bearer),
         )
         assert response.status_code == 500

@@ -539,7 +539,12 @@ def create_server(
         server.remove_tool("canvas_download_file")
 
         from canvas_mcp.mcp.artifact_result import artifact_result
-        from canvas_mcp.mcp.artifact_ui import ARTIFACT_HTML, ARTIFACT_URI, LEGACY_ARTIFACT_URI
+        from canvas_mcp.mcp.artifact_ui import (
+            ARTIFACT_HTML,
+            ARTIFACT_URI,
+            LEGACY_ARTIFACT_URI,
+            PREVIOUS_ARTIFACT_URI,
+        )
 
         def original_file_card() -> str:
             return ARTIFACT_HTML
@@ -548,6 +553,7 @@ def create_server(
         for card_uri, card_name in (
             (ARTIFACT_URI, "canvas_original_file"),
             (LEGACY_ARTIFACT_URI, "canvas_original_file_legacy"),
+            (PREVIOUS_ARTIFACT_URI, "canvas_original_file_previous"),
         ):
             server.resource(
                 card_uri,
@@ -569,6 +575,33 @@ def create_server(
             meta={"ui": {"resourceUri": ARTIFACT_URI}, "openai/outputTemplate": ARTIFACT_URI},
         )
         async def remote_download_file(
+            course_id: PositiveId,
+            file_id: PositiveId,
+            source_kind: SourceKind = "course_file",
+            source_id: PositiveId | None = None,
+            module_id: PositiveId | None = None,
+        ) -> Annotated[CallToolResult, dto.McpResult]:
+            try:
+                async with factory() as service:
+                    result = await service.download_original(
+                        _reference(course_id, file_id, source_kind, source_id, module_id)
+                    )
+                    return artifact_result(result, include_original=False)
+            except Exception as error:
+                raise _error(error) from None
+
+        @server.tool(
+            name="canvas_fetch_original_for_card",
+            structured_output=True,
+            description="Retrieve the bounded validated original for the file card after its user clicks Attach. Accepts only the same authorized Canvas FileReference. Repeats fresh authorization, anonymous validated download, integrity and cleanup. Widget-only transport; do not call from the model or return its hidden bytes in chat text.",
+            annotations=DOWNLOAD,
+            meta={
+                "ui": {"visibility": ["app"]},
+                "openai/visibility": "private",
+                "openai/widgetAccessible": True,
+            },
+        )
+        async def fetch_original_for_card(
             course_id: PositiveId,
             file_id: PositiveId,
             source_kind: SourceKind = "course_file",

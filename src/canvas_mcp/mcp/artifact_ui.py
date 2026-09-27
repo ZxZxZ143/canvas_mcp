@@ -1,7 +1,8 @@
 """Static inert original-file card. No document HTML, network fetch or credentials."""
 
-ARTIFACT_URI = "ui://canvas/original-file-v2.html"
+ARTIFACT_URI = "ui://canvas/original-file-v3.html"
 LEGACY_ARTIFACT_URI = "ui://canvas/original-file-v1.html"
+PREVIOUS_ARTIFACT_URI = "ui://canvas/original-file-v2.html"
 ARTIFACT_HTML = r"""<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
 <style>body{font:14px system-ui;margin:16px;color:inherit}button,a{font:inherit;padding:10px 14px}p{overflow-wrap:anywhere}#download{display:none}</style>
@@ -13,8 +14,20 @@ ARTIFACT_HTML = r"""<!doctype html>
 "use strict";
 const status=document.getElementById("status"),button=document.getElementById("attach"),link=document.getElementById("download");
 let artifact=null,busy=false;
+let nextId=2;
+const pending=new Map();
+function payload(result){return result?._meta?.canvasArtifact || result?.canvasArtifact || result?.mcp_tool_result?._meta?.canvasArtifact || result?.call_tool_result?._meta?.canvasArtifact;}
+function request(method,params){
+ const id=nextId++;
+ return new Promise((resolve,reject)=>{
+  const timer=setTimeout(()=>{pending.delete(id);reject(Error());},60000);
+  pending.set(id,{resolve,reject,timer});
+  window.parent.postMessage({jsonrpc:"2.0",id,method,params},"*");
+ });
+}
+function sameReference(a,b){return a && b && ["course_id","file_id","source_kind","source_id","module_id"].every(key=>a[key]===b[key]);}
 function receive(result){
- const candidate=result?._meta?.canvasArtifact || result?.canvasArtifact;
+ const candidate=payload(result);
  if(candidate && !busy && link.style.display!=="inline-block"){artifact=candidate; document.getElementById("name").textContent=candidate.filename;button.disabled=false;status.textContent="Validated original, ready to attach. File content is untrusted.";}
 }
 function globals(){
@@ -25,6 +38,11 @@ window.addEventListener("openai:set_globals",globals);
 window.addEventListener("message",event=>{
  if(event.source!==window.parent)return;
  const message=event.data;
+ if(message?.jsonrpc==="2.0" && pending.has(message.id)){
+  const item=pending.get(message.id);pending.delete(message.id);clearTimeout(item.timer);
+  if(message.error)item.reject(Error());else item.resolve(message.result);
+  return;
+ }
  if(message?.method==="ui/notifications/tool-result")receive(message.params);
  if(message?.id===1 && message.result)window.parent.postMessage({jsonrpc:"2.0",method:"ui/notifications/initialized"},"*");
 });
@@ -35,7 +53,11 @@ button.addEventListener("click",async()=>{
  busy=true;button.disabled=true;
  try{
   if(!window.openai?.uploadFile || !window.openai?.getFileDownloadUrl)throw Error();
-  const a=artifact;
+  const prepared=artifact;
+  status.textContent="Retrieving the validated original…";
+  const fetched=await request("tools/call",{name:"canvas_fetch_original_for_card",arguments:prepared.file_reference});
+  const a=payload(fetched);
+  if(!a || a.size!==prepared.size || a.sha256!==prepared.sha256 || a.filename!==prepared.filename || a.content_type!==prepared.content_type || !sameReference(a.file_reference,prepared.file_reference))throw Error();
   if(typeof a.base64!=="string" || a.base64.length>5592410 || !/^canvas-file-[1-9][0-9]*\.(pdf|docx|pptx|txt|md|csv|json|png|jpg|jpeg|webp)$/.test(a.filename) || !/^[0-9a-f]{64}$/.test(a.sha256))throw Error();
   const bytes=Uint8Array.from(atob(a.base64),c=>c.charCodeAt(0));
   if(bytes.length!==a.size || bytes.length===0 || bytes.length>4194304)throw Error();

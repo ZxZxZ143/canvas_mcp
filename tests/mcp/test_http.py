@@ -112,11 +112,12 @@ def test_initialization_health_and_list_do_not_open_canvas():
         assert {tool["name"] for tool in listed} == REMOTE | {
             "canvas_get_file_content",
             "canvas_download_file",
+            "canvas_fetch_original_for_card",
         }
         assert all(
             tool["annotations"]["readOnlyHint"]
             for tool in listed
-            if tool["name"] != "canvas_download_file"
+            if tool["name"] not in {"canvas_download_file", "canvas_fetch_original_for_card"}
         )
         assert "access-control-allow-origin" not in health.headers
 
@@ -144,7 +145,11 @@ def test_official_python_sdk_client_completes_initialization_and_tool_flow():
                         assert session_id() is None
                         assert {
                             tool.name for tool in (await session.list_tools()).tools
-                        } == REMOTE | {"canvas_get_file_content", "canvas_download_file"}
+                        } == REMOTE | {
+                            "canvas_get_file_content",
+                            "canvas_download_file",
+                            "canvas_fetch_original_for_card",
+                        }
                         value = await session.call_tool("canvas_get_profile", {})
                         assert not value.isError
                         assert (
@@ -247,7 +252,7 @@ def test_real_remote_startup_does_not_query_canvas_or_import_windows_store(monke
     )
     with TestClient(app, base_url="http://127.0.0.1:8000") as connection:
         assert connection.get("/health").json() == {"status": "ok"}
-        assert len(rpc(connection, "tools/list").json()["result"]["tools"]) == 16
+        assert len(rpc(connection, "tools/list").json()["result"]["tools"]) == 17
 
 
 @pytest.mark.parametrize(
