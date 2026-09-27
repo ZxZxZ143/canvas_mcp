@@ -12,7 +12,7 @@ Canvas Student is a personal, read-only Canvas LMS integration for Codex. A loca
 | Tested platform | Windows |
 | Live-tested installation | Narxoz University Canvas |
 
-This is a local, single-user installation. It is not a public marketplace plugin or remote MCP service.
+The stable plugin is a local, single-user installation. Phase 6.1 adds a locally tested Streamable HTTP scaffold with default-deny authentication; it is not publicly deployed or connected to ChatGPT. See the [remote MCP guide](docs/phase6-remote-mcp.md).
 
 ## Architecture
 
@@ -216,7 +216,7 @@ tests/                   unit, contract, integration and security tests
 
 ## Known limitations
 
-Canvas access is read-only: there is no assignment submission, upload, comment, grade change or enrollment change. There is no remote MCP, OAuth, multi-user isolation, or public marketplace publication. Secure credential and file storage are Windows-first. The local plugin configuration is Narxoz-specific, and another same-user process can access its Windows generic credential.
+Canvas access is read-only: there is no assignment submission, upload, comment, grade change or enrollment change. The HTTP adapter supports a personal Auth0 resource server. Render Free Web Service is the active Phase 6.2 hosting target; live deployment and ChatGPT linking remain pending. See [Render setup and actual status](docs/phase6-2-render-deployment.md) and [resource-server architecture and historical Railway evaluation](docs/phase6-2-remote-personal.md). Remote downloads, multi-user deployment, and public marketplace publication are unavailable. Secure local credential and file storage are Windows-first. The local plugin configuration is Narxoz-specific, and another same-user process can access its Windows generic credential.
 
 ## Roadmap
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import datetime
-from typing import Any, TypeVar, TypedDict, cast
+from typing import Any, Literal, TypeVar, TypedDict, cast
 
 from pydantic_core import to_json
 from mcp.types import CallToolResult, TextContent
@@ -369,3 +369,21 @@ def downloaded_file(value: DownloadedFile) -> dict[str, Any]:
         "sha256": value.sha256,
         "trust": "untrusted",
     }
+
+
+def for_transport(value: McpResult, transport: Literal["stdio", "http"]) -> McpResult:
+    """Project an artifact descriptor without exposing server paths over HTTP.
+
+    Downloads are withheld on HTTP in 6.1. This explicit allowlist also protects
+    the descriptor when remote artifact handling is added in 6.3.
+    """
+    if transport == "stdio":
+        return value
+    data = value["data"]
+    if "artifact_id" in data:
+        data = {
+            key: data[key]
+            for key in ("artifact_id", "size", "sha256", "content_type", "trust")
+            if key in data
+        }
+    return {**value, "data": data}

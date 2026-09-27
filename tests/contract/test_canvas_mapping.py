@@ -124,6 +124,28 @@ def test_cursor_scope_filter_and_expiry(stack):
     asyncio.run(run())
 
 
+def test_cursor_from_previous_instance_fails_safely_and_listing_can_restart(stack):
+    async def run():
+        async with stack(
+            [response(PROFILE), response([COURSE], headers=[(b"Link", next_link())])]
+        ) as previous:
+            first = await previous.provider.list_courses(previous.ctx, PageRequest(), True)
+            cursor = first.next_cursor
+            assert cursor
+        async with stack([response(PROFILE), response([COURSE])]) as restarted:
+            with pytest.raises(ValidationError):
+                await restarted.provider.list_courses(
+                    restarted.ctx, PageRequest(cursor=cursor), True
+                )
+            # Authentication may refresh, but the obsolete continuation must never
+            # become a URL or fetch a courses page in the new instance.
+            assert b"/api/v1/courses" not in b"".join(restarted.backend.writes)
+            fresh = await restarted.provider.list_courses(restarted.ctx, PageRequest(), True)
+            assert [item.id for item in fresh.items] == ["8"] and fresh.complete
+
+    asyncio.run(run())
+
+
 @pytest.mark.parametrize(
     "limit_name,limit_value",
     [

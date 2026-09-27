@@ -1,0 +1,25 @@
+# Allowlist build context: runtime source and pinned packaging only.
+**
+!Dockerfile
+!.dockerignore
+!pyproject.toml
+!requirements-remote.lock
+!src/
+!src/**
+
+# Exclude even if produced underneath src/.
+**/.git
+**/.venv
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.egg-info
+**/.env*
+**/downloads
+**/diagnostics
+**/tests
+**/build
+**/dist
+**/runtime
+**/artifacts
+**/*.log

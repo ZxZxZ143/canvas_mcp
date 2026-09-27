@@ -15,3 +15,13 @@ class AccessToken:
 
 class CredentialSource(Protocol):
     async def get_access_token(self, scope: AccessScope) -> AccessToken: ...
+
+
+class CanvasCredentialProvider(Protocol):
+    """Resolve a credential source for a principal's authorized account scope.
+
+    The local Windows source already implements CredentialSource. Remote secret
+    storage in Phase 6.2 implements this provider; application services see neither.
+    """
+
+    def for_scope(self, scope: AccessScope) -> CredentialSource: ...

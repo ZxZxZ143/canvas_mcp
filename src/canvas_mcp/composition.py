@@ -46,7 +46,6 @@ from canvas_mcp.domain.models import (
 from canvas_mcp.infrastructure.canvas.client import CanvasHttpClient
 from canvas_mcp.infrastructure.canvas.provider import CanvasProvider
 from canvas_mcp.infrastructure.config.environment import EnvironmentCredentialSource, load_settings
-from canvas_mcp.infrastructure.config.windows_credentials import WindowsCredentialSource
 from canvas_mcp.domain.errors import ConfigurationError
 from canvas_mcp.infrastructure.config.schema import DeploymentSettings
 from canvas_mcp.infrastructure.logging.events import EventLogger
@@ -232,22 +231,44 @@ async def open_canvas_connection(
     provider_kind = env.get("CANVAS_CREDENTIAL_PROVIDER", "environment")
     credentials: CredentialSource
     if provider_kind == "windows":
+        from canvas_mcp.infrastructure.config.windows_credentials import WindowsCredentialSource
+
         credentials = WindowsCredentialSource(scope)
     elif provider_kind == "environment":
         credentials = EnvironmentCredentialSource.from_environment(scope, env)
     else:
         raise ConfigurationError()
+    async with open_scoped_connection(
+        settings, scope, credentials, log_stream=log_stream
+    ) as connection:
+        yield connection
+
+
+@asynccontextmanager
+async def open_scoped_connection(
+    settings: DeploymentSettings,
+    scope: AccessScope,
+    credentials: CredentialSource,
+    *,
+    log_stream: TextIO | None = None,
+    local_downloads: bool = True,
+) -> AsyncIterator[CanvasConnection]:
+    """Compose the existing services with an explicit scope and credential port; no I/O."""
     logger = EventLogger(settings.log_level, log_stream)
     if settings.allow_private_origin:
         logger.configured_private_origin_enabled()
     client = CanvasHttpClient(settings, credentials, logger)
     provider = CanvasProvider(client, scope, settings, logger)
-    downloads = FileDownloadManager(
-        provider,
-        CanvasDownloadClient(settings, client, logger),
-        ManagedStore(settings, scope),
-        settings,
-        logger,
+    downloads = (
+        FileDownloadManager(
+            provider,
+            CanvasDownloadClient(settings, client, logger),
+            ManagedStore(settings, scope),
+            settings,
+            logger,
+        )
+        if local_downloads
+        else None
     )
     try:
         yield CanvasConnection(
@@ -255,10 +276,26 @@ async def open_canvas_connection(
             scope,
             settings,
             AcademicService(provider),
-            FileService(provider, downloads),
+            FileService(provider, downloads if downloads is not None else _UnavailableDownloads()),
         )
     finally:
         try:
-            await downloads.aclose()
+            if downloads is not None:
+                await downloads.aclose()
         finally:
             await provider.aclose()
+
+
+class _UnavailableDownloads:
+    """Remote reads retain file metadata without constructing local storage."""
+
+    async def download_file(self, ctx: RequestContext, reference: FileReference) -> DownloadedFile:
+        raise UnsupportedCapabilityError()
+
+    async def resolve_download(
+        self, ctx: RequestContext, artifact_id: ArtifactId
+    ) -> DownloadedFile:
+        raise UnsupportedCapabilityError()
+
+    async def cleanup_download(self, ctx: RequestContext, artifact_id: ArtifactId) -> None:
+        raise UnsupportedCapabilityError()
