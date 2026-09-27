@@ -169,7 +169,8 @@ def test_worker_errors_cancellation_and_timeout_reap_before_cleanup(tmp_path, mo
 
     async def recording(*args, **kwargs):
         assert kwargs["close_fds"] and len(kwargs["pass_fds"]) == 1
-        assert set(kwargs["env"]) == {"LANG", "TZ"}
+        assert set(kwargs["env"]) == {"LANG", "TZ", "OMP_THREAD_LIMIT", "OMP_NUM_THREADS"}
+        assert kwargs["env"]["OMP_THREAD_LIMIT"] == kwargs["env"]["OMP_NUM_THREADS"] == "1"
         process = await original(*args, **kwargs)
         processes.append(process)
         return process
@@ -202,7 +203,7 @@ def test_worker_errors_cancellation_and_timeout_reap_before_cleanup(tmp_path, mo
         )
         try:
             if failure == "cancel":
-                while not processes:
+                while not processes and not operation.done():
                     await asyncio.sleep(0.001)
                 operation.cancel()
             expected = (

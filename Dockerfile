@@ -24,7 +24,7 @@ USER 10001:10001
 WORKDIR /verify
 # The build must prove actual Linux file containment and killable parser isolation.
 # Only generated synthetic documents are used; no Canvas/Auth0/network calls.
-RUN PYTHONPATH=/opt/check-deps /opt/venv/bin/python -m pytest -q -s -p no:cacheprovider --tb=short /verify
+RUN PYTHONPATH=/opt/check-deps /opt/venv/bin/python -u -m pytest -v -s -p no:cacheprovider --tb=short /verify
 
 FROM ocr-base AS runtime
 ENV PATH="/opt/venv/bin:$PATH" \
