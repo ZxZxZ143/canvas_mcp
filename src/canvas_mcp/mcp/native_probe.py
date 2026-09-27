@@ -4,6 +4,7 @@ import hashlib
 
 from mcp.server.fastmcp import FastMCP
 from mcp.types import CallToolResult, ResourceLink, TextContent, ToolAnnotations
+from pydantic import AnyUrl
 
 URI = "canvas://experiments/native-original.pdf"
 
@@ -50,7 +51,7 @@ def register_native_probe(server: FastMCP) -> None:
             content=[
                 ResourceLink(
                     type="resource_link",
-                    uri=URI,
+                uri=AnyUrl(URI),
                     name="Synthetic-original.pdf",
                     mimeType="application/pdf",
                     size=len(body),
