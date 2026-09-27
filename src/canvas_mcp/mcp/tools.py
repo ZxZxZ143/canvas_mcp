@@ -536,6 +536,9 @@ def create_server(
         return await invoke(operation, lambda result: dto.envelope(result, dto.downloaded_file))
 
     if transport == "http":
+        from canvas_mcp.mcp.native_probe import register_native_probe
+
+        register_native_probe(server)
         server.remove_tool("canvas_download_file")
 
         from canvas_mcp.mcp.artifact_result import artifact_result
