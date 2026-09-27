@@ -1,7 +1,13 @@
 # Remote file OCR and original downloads
 
-Phase 6.4 extends the Phase 6.3 public_url pipeline. Both tools accept only a Canvas
-FileReference (course/file/source IDs), reauthorize the source, request a fresh
+Release status: **INCOMPLETE**. Fresh ChatGPT OCR, original attachment/download and
+native-text regression have passed, but saved artifact-card conversations
+reproducibly fail to reload, including before Attach. The cause is unknown. See the
+evidence and release blocker in [phase6-4-ocr-and-downloads.md](phase6-4-ocr-and-downloads.md).
+
+Phase 6.4 extends the Phase 6.3 public_url pipeline. The user-facing file tools and
+app-only byte transport accept only a Canvas FileReference (course/file/source IDs),
+reauthorize the source, request a fresh
 capability and download anonymously with the existing pinned destination and MIME
 policies. They never accept a URL, server path, archive member or OCR configuration.
 
@@ -41,7 +47,8 @@ remaining native pages and reports partial coverage through limitations/truncate
 | Entire remote file operation | 50 seconds, also bounded by request deadline |
 | Extracted Unicode characters | 16,000 |
 | Text MCP result | 131,072 bytes, including duplicated SDK payload/framing |
-| Artifact MCP result | 5,700,000 bytes, including hidden base64 payload/framing |
+| Ordinary HTTP result capture, including preparation | 262,144 bytes |
+| App-only byte transport result | 5,700,000 bytes, including hidden base64 payload/framing |
 
 One shared gate serializes downloads and parser work. Large embedded PDF images
 remain constrained by the address-space and CPU limits even when output pixels are
@@ -49,13 +56,24 @@ small. Oversized or malformed files fail safely. Native imports/model initializa
 are bounded too. Trusted dependencies: Pillow 12.3.0, pypdfium2 5.13.0,
 Debian bookworm libtesseract5 5.3.0-2 and tesseract-ocr-eng 1:4.1.0-2.
 The model is packaged with the image; no paid OCR API or runtime model fetch exists.
+Linux build sample measurements: English model 4,113,088 bytes, aggregate child peak
+RSS 107,304 KiB; a synthetic one-page OCR call took 0.380 seconds wall/0.363 CPU seconds.
+Actual file complexity varies; fixed limits remain enforced regardless of these
+sample timings. The existing Render Free instance has 512 MB and 0.15 CPU. Live
+memory/CPU metrics are gated behind a paid compute plan, which was not enabled.
+The live three-page hybrid Canvas call took 18.429 seconds including authorization,
+download, OCR and serialization. Render warns idle cold starts may add 50 seconds
+or more. The model is about 3.92 MiB and no multi-language or GPU stack is installed;
+total runtime container-image size was not independently measured.
 
 ## Sandbox
 
 The worker gets an already-open read-only artifact FD and a clean environment with
 no PAT, Auth0 token, URL or Canvas configuration. Only trusted fixed codec imports,
 native libraries and model data load before the unchanged seccomp allowlist seals.
-No document is decoded before sealing. Bootstrap rejects extra OS threads and
+Fixed EXIF metadata support is preloaded as well, so ordinary phone JPEGs do not
+need imports after sealing; TIFF image input remains unsupported. No document is
+decoded before sealing. Bootstrap rejects extra OS threads and
 surviving readable FDs. OpenMP is restricted to one thread. After sealing, arbitrary
 open/openat, sockets/connect, exec/fork/clone and artifact writes remain denied.
 The worker is killed and reaped before staging is closed on timeout/cancellation.
@@ -64,9 +82,15 @@ Private anchored temporary directories are removed in finally on every outcome.
 ## Original-file card
 
 canvas_download_file uses a separate remote DTO, never the stdio path descriptor.
-The model receives compact file metadata, trust, integrity hash and FileReference;
-validated original bytes travel only in hidden tool _meta to a static MCP Apps UI
-resource. No signed Canvas capability or server path is returned. Credential or
+The model's preparation result uses the ordinary McpResult structured-output path
+and contains compact file metadata, trust, integrity hash and FileReference, with
+no hidden metadata, original bytes or base64 anywhere. On a user click,
+the static card calls a separate app-only canvas_fetch_original_for_card tool via
+the standard authenticated tools/call bridge. That tool has no UI template and
+repeats authorization, validated download and staging cleanup. Its bounded original
+bytes travel in hidden _meta directly to the card. The card rejects any mismatch
+against the prepared full reference, size, hash, filename or MIME type before
+uploading. No signed Canvas capability or server path is returned. Credential or
 current-capability reflection rejects the original rather than altering it.
 Before HTTP transport, bounded base64 is decoded inertly, size/SHA-256 are checked,
 and original bytes are checked against server secrets and the presented OAuth
@@ -75,21 +99,50 @@ document decoders and the OCR worker.
 Staging is deleted before the tool returns. Original bytes are not interpreted by
 the UI and filenames use textContent and a generated safe name.
 
-The user requests the original after analysis. The file card verifies size and
-SHA-256, feature-detects ChatGPT's optional uploadFile/getFileDownloadUrl helpers,
-and attaches the original only on a user click. It saves the returned ChatGPT file
-ID to avoid duplicate uploads and presents a download link only after acceptance.
+The user requests the original after analysis. The assistant calls the download
+tool once and directs the user to the card's Attach original for download button,
+then Download original. A prepared card is a successful first step; the assistant
+must not call the tool again to seek automatic confirmation or claim the card
+failed simply because its user-click attachment has not happened yet.
+The file card verifies size and SHA-256, feature-detects ChatGPT's optional
+uploadFile/getFileDownloadUrl helpers, and attaches the original only on a user
+click. It saves the returned ChatGPT file ID to avoid duplicate uploads and
+presents a download link only after acceptance. Repeated host globals must preserve
+an in-progress upload and its confirmed success status. The v4 resource URI avoids
+stale host caches of previous cards. Previous v1/v2/v3 URIs remain registered as
+fixed aliases to the same reviewed HTML/CSP for resource compatibility.
+None of these static resources is exposed by stdio; unknown resource URIs remain rejected.
 There is no arbitrary fetch, external publishing or manual user file upload.
 If the host cannot create the file, the card reports failure and the assistant must
-not claim a downloadable artifact exists. Platform persistence and exact original
-integrity require real ChatGPT Web verification before release completion.
+not claim a downloadable artifact exists. The earlier real ChatGPT workflow saved
+the exact 519944-byte original with a matching local SHA-256. The final split workflow
+separately passed app-only retrieval (HTTP 200, 13.469 seconds), client SHA-256,
+platform acceptance and its actual download link/three-page PDF preview. No fresh
+local hash was confirmed for that final path. Some browsers open PDFs in their viewer
+first; use its Download control to save them. Platform retention follows ChatGPT's
+policies, rather than a server staging TTL. The code can refresh a temporary link
+and reuse a retained file ID after reload; this behavior cannot currently be relied
+on in actual saved conversations because the host fails to load those conversations.
 
 The UI declares empty external connection/resource domain lists. It renders no
 document HTML, raster content or code. The ChatGPT file service handles its own
 temporary download link; Canvas capabilities remain private to the server.
 
-Remote tools: 16 (content reading plus original download). Local stdio: original
-15 tools and managed local download behavior.
+Remote tools: 17 registered: 16 model-visible tools (including content reading and
+original preparation), plus one app-only byte transport tool with no UI template.
+App visibility is a host routing rule; it does not replace server authentication
+or FileReference authorization. Local stdio: original 15 tools and managed local
+download behavior. The extra transport tool is an evidence-driven compatibility
+change: saved ChatGPT conversations with the original 519944-byte binary tool
+result became unloadable even before Attach, while the native-only control reloaded.
+The first compact split also failed before Attach; binary size is therefore not
+an established cause. No exact host payload-size limit or root cause is claimed.
+The final standard DTO preparation also failed actual reload before Attach, despite
+having no hidden metadata or bytes. A verified compatibility remedy and actual reload
+checks before and after Attach remain required for release completion. Bytes never enter
+widgetState, ui/message or model-context updates. Each Attach click reauthorizes the
+Canvas source before requesting the platform file link, even when a saved ChatGPT
+file ID can be reused. Download original uses the already-issued ChatGPT link.
 
 References: [OpenAI component/file APIs](https://developers.openai.com/plugins/reference),
 [MCP Apps UI integration](https://developers.openai.com/plugins/build/chatgpt-ui),
