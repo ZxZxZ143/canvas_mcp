@@ -1,5 +1,10 @@
 # syntax=docker/dockerfile:1
-FROM python:3.13-slim AS builder
+FROM python:3.13-slim-bookworm AS ocr-base
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libtesseract5=5.3.0-2 tesseract-ocr-eng=1:4.1.0-2 \
+    && rm -rf /var/lib/apt/lists/*
+
+FROM ocr-base AS builder
 WORKDIR /build
 COPY requirements-remote.lock pyproject.toml ./
 RUN python -m venv /opt/venv \
@@ -14,14 +19,14 @@ COPY requirements-remote-check.lock ./
 RUN /opt/venv/bin/pip install --no-cache-dir --no-deps --target /opt/check-deps -r requirements-remote-check.lock \
     && groupadd --gid 10001 canvas \
     && useradd --uid 10001 --gid canvas --no-create-home --shell /usr/sbin/nologin canvas
-COPY tests/conftest.py tests/file_content_fixtures.py tests/unit/test_document_content.py tests/security/test_ephemeral_storage.py tests/integration/test_remote_file_content.py /verify/
+COPY tests/conftest.py tests/file_content_fixtures.py tests/unit/test_document_content.py tests/unit/test_ocr_selection.py tests/security/test_ephemeral_storage.py tests/integration/test_remote_file_content.py tests/integration/test_remote_ocr.py /verify/
 USER 10001:10001
 WORKDIR /verify
 # The build must prove actual Linux file containment and killable parser isolation.
 # Only generated synthetic documents are used; no Canvas/Auth0/network calls.
-RUN PYTHONPATH=/opt/check-deps /opt/venv/bin/python -m pytest -q -p no:cacheprovider --tb=short /verify
+RUN PYTHONPATH=/opt/check-deps /opt/venv/bin/python -m pytest -q -s -p no:cacheprovider --tb=short /verify
 
-FROM python:3.13-slim AS runtime
+FROM ocr-base AS runtime
 ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1

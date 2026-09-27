@@ -53,7 +53,12 @@ async def parse_file(
                     stderr=asyncio.subprocess.DEVNULL,
                     close_fds=True,
                     pass_fds=(fd,),
-                    env={"LANG": "C.UTF-8", "TZ": "UTC"},
+                    env={
+                        "LANG": "C.UTF-8",
+                        "TZ": "UTC",
+                        "OMP_THREAD_LIMIT": "1",
+                        "OMP_NUM_THREADS": "1",
+                    },
                     cwd="/tmp",
                     limit=MAX_WORKER_OUTPUT_BYTES + 1,
                 )

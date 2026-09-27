@@ -40,10 +40,10 @@ def test_local_remote_tool_surfaces_and_read_annotation():
     local = asyncio.run(create_server(Connection(), None).list_tools())
     server = create_server(Connection(), None, transport="http")
     remote = asyncio.run(server.list_tools())
-    assert len(local) == len(remote) == 15
+    assert len(local) == 15 and len(remote) == 16
     assert "canvas_download_file" in {t.name for t in local}
     assert "canvas_get_file_content" not in {t.name for t in local}
-    assert "canvas_download_file" not in {t.name for t in remote}
+    assert "canvas_download_file" in {t.name for t in remote}
     tool = next(t for t in remote if t.name == "canvas_get_file_content")
     assert tool.annotations.readOnlyHint is True
     assert tool.annotations.destructiveHint is False and tool.annotations.openWorldHint is False
@@ -51,7 +51,7 @@ def test_local_remote_tool_surfaces_and_read_annotation():
     assert not {"url", "public_url", "path", "archive_member"}.intersection(
         tool.inputSchema["properties"]
     )
-    assert "untrusted" in tool.description and "untrusted" in server.instructions
+    assert "untrusted" in tool.description.lower() and "untrusted" in server.instructions.lower()
 
 
 def test_file_result_preserves_inert_injection_with_no_artifact_fields():

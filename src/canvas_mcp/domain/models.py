@@ -341,7 +341,11 @@ class DownloadedFile:
     redirects: int
     expires_at: datetime
     classification: Literal[
-        "untrusted_document", "untrusted_text", "opaque_archive", "office_candidate"
+        "untrusted_document",
+        "untrusted_text",
+        "opaque_archive",
+        "office_candidate",
+        "untrusted_image",
     ]
     trust: Literal["untrusted"] = field(default="untrusted", init=False)
 

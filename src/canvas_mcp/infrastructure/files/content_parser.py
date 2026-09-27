@@ -6,7 +6,7 @@ import logging
 import posixpath
 import re
 import zipfile
-from typing import Any, BinaryIO
+from typing import Any, BinaryIO, Protocol
 from xml.etree.ElementTree import Element, TreeBuilder
 
 from defusedxml.ElementTree import DefusedXMLParser  # type: ignore[import-untyped]
@@ -19,6 +19,9 @@ from canvas_mcp.domain.file_content import (
     REMOTE_FILE_MAX_TEXT_CHARS,
     REMOTE_INSPECTION_MAX_BYTES,
     SUPPORTED_FORMATS,
+    IMAGE_FORMATS,
+    OCR_MAX_PAGES,
+    OCR_NATIVE_MIN_CHARACTERS,
     bounded_json,
 )
 from canvas_mcp.infrastructure.files.format_probe import _json, identify, identify_archive_reader
@@ -29,6 +32,19 @@ MAX_EXPANDED_BYTES = 20 * 1024 * 1024
 MAX_XML_NODES = 50_000
 MAX_XML_DEPTH = 64
 MAX_UNITS = 256
+OCR_LIMITATIONS = (
+    "ocr_english_printed_text_best_effort",
+    "formulas_symbols_and_handwriting_may_contain_errors",
+    "diagrams_not_structurally_interpreted",
+    "non_text_visuals_not_fully_extracted",
+)
+
+
+class Engine(Protocol):
+    def image(self, data: bytes, fmt: str) -> str: ...
+    def pdf_page(self, data: bytes, number: int) -> str: ...
+
+
 W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 A = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
 P = "{http://schemas.openxmlformats.org/presentationml/2006/main}"
@@ -274,7 +290,9 @@ def _pptx(package: Package, output: Output, selection: ContentSelection) -> int:
     return len(slides)
 
 
-def extract(stream: BinaryIO, fmt: str, selection: ContentSelection) -> dict[str, Any]:
+def extract(
+    stream: BinaryIO, fmt: str, selection: ContentSelection, *, engine: Engine | None = None
+) -> dict[str, Any]:
     selection.validate()
     if fmt not in SUPPORTED_FORMATS:
         raise ValueError()
@@ -287,6 +305,10 @@ def extract(stream: BinaryIO, fmt: str, selection: ContentSelection) -> dict[str
     output = Output()
     total: int | None = None
     omissions: tuple[str, ...] = ()
+    ocr_pages: list[int] = []
+    ocr_text_pages: list[int] = []
+    native_pages: list[int] = []
+    limitations: list[str] = []
     if fmt == "pdf":
         logging.getLogger("pypdf").disabled = True
         with apply_configuration(
@@ -308,11 +330,48 @@ def extract(stream: BinaryIO, fmt: str, selection: ContentSelection) -> dict[str
             for number in _range(total, selection, output):
                 prior = output.truncated
                 output.truncated = False
-                bounded = output.add("page", number, reader.pages[number - 1].extract_text())
+                text = reader.pages[number - 1].extract_text()
+                low_text = sum(char.isalnum() for char in text) < OCR_NATIVE_MIN_CHARACTERS
+                if low_text and engine is not None and len(ocr_pages) < OCR_MAX_PAGES:
+                    # Lazily acquire bytes for rendering, entirely inside the sandbox.
+                    stream.seek(0)
+                    scanned = engine.pdf_page(stream.read(REMOTE_INSPECTION_MAX_BYTES + 1), number)
+                    ocr_pages.append(number)
+                    # OCR never deletes useful native text when its own yield is weaker.
+                    if len(scanned.strip()) > len(text.strip()):
+                        text = scanned
+                        ocr_text_pages.append(number)
+                    elif text.strip():
+                        native_pages.append(number)
+                    if not scanned.strip():
+                        limitations.append("ocr_no_reliable_text_on_page")
+                else:
+                    if text.strip():
+                        native_pages.append(number)
+                    if low_text:
+                        limitations.append("ocr_page_limit" if engine else "ocr_unavailable")
+                        if engine:
+                            output.truncated = True
+                bounded = output.add("page", number, text)
                 output.truncated = output.truncated or prior
                 if not bounded:
                     break
-        omissions = ("images_ocr_attachments_and_active_actions_not_processed",)
+        omissions = (
+            ("images_ocr_attachments_and_active_actions_not_processed",)
+            if not ocr_pages
+            else ("non_text_visuals_attachments_and_active_actions_not_processed",)
+        )
+    elif fmt in IMAGE_FORMATS:
+        if engine is None:
+            raise ValueError()
+        total = 1
+        text = engine.image(stream.read(REMOTE_INSPECTION_MAX_BYTES + 1), fmt)
+        ocr_pages.append(1)
+        if text.strip():
+            ocr_text_pages.append(1)
+        output.add("page", 1, text)
+        if not text.strip():
+            limitations.append("ocr_no_reliable_text_on_page")
     elif fmt in ("docx", "pptx"):
         package = Package(stream, fmt)
         try:
@@ -364,4 +423,15 @@ def extract(stream: BinaryIO, fmt: str, selection: ContentSelection) -> dict[str
         "start_page": selection.start_page,
         "end_page": output.units[-1]["number"] if fmt in ("pdf", "pptx") and output.units else None,
         "omissions": list(omissions),
+        "extraction_mode": "hybrid"
+        if ocr_text_pages and native_pages
+        else "ocr"
+        if ocr_pages and not native_pages
+        else "native",
+        "ocr_pages": ocr_pages,
+        "native_pages": native_pages,
+        "page_count_processed": len(output.units)
+        if fmt in ("pdf", "pptx") or fmt in IMAGE_FORMATS
+        else 0,
+        "limitations": list(dict.fromkeys((*limitations, *(OCR_LIMITATIONS if ocr_pages else ())))),
     }

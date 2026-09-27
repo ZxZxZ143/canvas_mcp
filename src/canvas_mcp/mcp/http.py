@@ -1,6 +1,8 @@
 """HTTP-only authentication, resource bounds and safe observability. No Canvas logic."""
 
 import asyncio
+import base64
+import hashlib
 import hmac
 import json
 import logging
@@ -21,6 +23,37 @@ from canvas_mcp.mcp.identity import (
     current_failures,
 )
 from canvas_mcp.infrastructure.config.oauth import OAuthSettings
+from canvas_mcp.domain.file_content import REMOTE_ARTIFACT_MAX_BYTES
+from canvas_mcp.infrastructure.files.policy import reflects_capability
+
+
+def _validate_original(output: object, secrets: tuple[str, ...]) -> None:
+    """Inspect bounded inert bytes before transport; credentials never reach parsers."""
+    if not isinstance(output, dict) or not isinstance(output.get("result"), dict):
+        return
+    result = output["result"]
+    meta = result.get("_meta", {})
+    if not isinstance(meta, dict):
+        raise ValueError()
+    artifact = meta.get("canvasArtifact")
+    if artifact is None:
+        return
+    if not isinstance(artifact, dict):
+        raise ValueError()
+    encoded, size, digest = artifact.get("base64"), artifact.get("size"), artifact.get("sha256")
+    if (
+        not isinstance(encoded, str)
+        or len(encoded) > ((REMOTE_ARTIFACT_MAX_BYTES + 2) // 3) * 4
+        or type(size) is not int
+        or not 0 < size <= REMOTE_ARTIFACT_MAX_BYTES
+        or not isinstance(digest, str)
+    ):
+        raise ValueError()
+    original = base64.b64decode(encoded, validate=True)
+    if len(original) != size or hashlib.sha256(original).hexdigest() != digest:
+        raise ValueError()
+    if any(secret and reflects_capability(original, secret) for secret in secrets):
+        raise ValueError()
 
 
 @dataclass(frozen=True, repr=False)
@@ -280,7 +313,14 @@ class HttpBoundary:
                     async def capture(message: Message) -> None:
                         nonlocal response_size
                         response_size += len(message.get("body", b""))
-                        if response_size > 262_144:
+                        # Original bytes are widget-only metadata, with their own
+                        # exact wire cap. Keep the existing cap for every other call.
+                        maximum = (
+                            5_700_000
+                            if operation == "tools/call" and tool == "canvas_download_file"
+                            else 262_144
+                        )
+                        if response_size > maximum:
                             raise ValueError()
                         messages.append(message)
 
@@ -325,6 +365,13 @@ class HttpBoundary:
                                 ]
                     except (ValueError, TypeError):
                         pass
+                    if operation == "tools/call" and tool == "canvas_download_file":
+                        presented = (
+                            authorization[0].split(b" ", 1)[-1].decode("latin1")
+                            if self.oauth and authorization
+                            else ""
+                        )
+                        _validate_original(json.loads(raw), (*self.secrets, presented))
                     for message in messages:
                         if message["type"] == "http.response.start":
                             message["headers"] = [

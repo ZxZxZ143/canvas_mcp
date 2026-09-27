@@ -26,6 +26,7 @@ from canvas_mcp.infrastructure.files.content_manager import RemoteFileContentMan
 from canvas_mcp.infrastructure.files.ephemeral import EphemeralStore
 from canvas_mcp.infrastructure.files.policy import MEDIA
 from canvas_mcp.mcp import projection as dto
+from canvas_mcp.mcp.artifact_result import artifact_result
 from conftest import ORIGIN, PROFILE, TOKEN, response
 from file_content_fixtures import pdf_bytes
 
@@ -137,6 +138,75 @@ def test_actual_authorized_download_extraction_and_no_locators(content_stack, tm
             # The logger's allowlisted operation name files.public_url is safe;
             # the infrastructure-private capability value/field never serializes.
             assert "public_url" not in json.dumps(output)
+            assert not list(tmp_path.iterdir())
+
+    asyncio.run(run())
+
+
+def test_original_download_has_exact_bytes_hash_cleanup_and_anonymous_transport(
+    content_stack, tmp_path
+):
+    import base64
+
+    async def run():
+        body = pdf_bytes()
+        async with content_stack(body) as (s, manager, service, pool):
+            original = await service.download_original(s.ctx, REFERENCE)
+            output = artifact_result(original)
+            assert base64.b64decode(output.meta["canvasArtifact"]["base64"]) == body
+            assert original.data.sha256 == hashlib.sha256(body).hexdigest()
+            assert len(pool.calls) == 1
+            visible = json.dumps(output.structuredContent)
+            assert not any(
+                forbidden in visible
+                for forbidden in (
+                    TOKEN,
+                    CAPABILITY,
+                    "PRIVATE_SIGNED_QUERY",
+                    str(tmp_path),
+                    "local_path",
+                )
+            )
+            assert not list(tmp_path.iterdir())
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize(
+    "case", ["association", "oversized", "reflection", "invalidated", "cancel"]
+)
+def test_original_failure_and_cancellation_leave_no_staging(
+    content_stack, tmp_path, monkeypatch, case
+):
+    async def run():
+        body = (
+            b"Original " + CAPABILITY.encode() if case == "reflection" else b"Original safe text."
+        )
+        async with content_stack(
+            body,
+            "txt",
+            association_failure=case == "association",
+            metadata_size=4194305 if case == "oversized" else None,
+        ) as (s, manager, service, pool):
+            if case in ("cancel", "invalidated"):
+                stream = manager._client.stream
+
+                async def changed(*args, **kwargs):
+                    await stream(*args, **kwargs)
+                    if case == "cancel":
+                        raise asyncio.CancelledError()
+                    s.provider._invalidate()
+
+                monkeypatch.setattr(manager._client, "stream", changed)
+            expected = {
+                "cancel": asyncio.CancelledError,
+                "association": NotFoundError,
+                "oversized": FileContentTooLargeError,
+                "reflection": FileParseError,
+                "invalidated": AuthenticationError,
+            }[case]
+            with pytest.raises(expected):
+                await service.download_original(s.ctx, REFERENCE)
             assert not list(tmp_path.iterdir())
 
     asyncio.run(run())

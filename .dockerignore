@@ -36,6 +36,8 @@ tests/**
 !tests/security/test_ephemeral_storage.py
 !tests/integration/
 !tests/integration/test_remote_file_content.py
+!tests/integration/test_remote_ocr.py
+!tests/unit/test_ocr_selection.py
 
 # Common exclusions take precedence over directory exceptions.
 **/__pycache__

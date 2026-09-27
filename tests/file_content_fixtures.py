@@ -2,6 +2,7 @@
 
 import io
 import zipfile
+import zlib
 
 from pypdf import PdfWriter
 from pypdf.generic import (
@@ -14,6 +15,62 @@ from pypdf.generic import (
 )
 
 from canvas_mcp.infrastructure.files.content_parser import W, A, P, R, REL, CT
+
+
+def image_bytes(fmt="PNG", text="Write a report about finite automata."):
+    from PIL import Image, ImageDraw, ImageFont
+
+    image = Image.new("RGB", (1000, 240), "white")
+    ImageDraw.Draw(image).text((30, 60), text, font=ImageFont.load_default(size=32), fill="black")
+    output = io.BytesIO()
+    image.save(output, format=fmt)
+    return output.getvalue()
+
+
+def scanned_pdf_bytes(*, pages=1, hybrid=False):
+    from PIL import Image
+    from pypdf import PdfReader
+
+    writer = PdfWriter()
+    if hybrid:
+        writer.add_page(
+            PdfReader(
+                io.BytesIO(
+                    pdf_bytes(
+                        ("Native requirement: " + "Explain automata and language closure. " * 4,)
+                    )
+                )
+            ).pages[0]
+        )
+    for _ in range(pages):
+        image = Image.open(io.BytesIO(image_bytes()))
+        page = writer.add_blank_page(width=600, height=144)
+        raster = DecodedStreamObject()
+        raster.set_data(zlib.compress(image.tobytes()))
+        raster.update(
+            {
+                NameObject("/Type"): NameObject("/XObject"),
+                NameObject("/Subtype"): NameObject("/Image"),
+                NameObject("/Width"): NumberObject(image.width),
+                NameObject("/Height"): NumberObject(image.height),
+                NameObject("/ColorSpace"): NameObject("/DeviceRGB"),
+                NameObject("/BitsPerComponent"): NumberObject(8),
+                NameObject("/Filter"): NameObject("/FlateDecode"),
+            }
+        )
+        page[NameObject("/Resources")] = DictionaryObject(
+            {
+                NameObject("/XObject"): DictionaryObject(
+                    {NameObject("/Im0"): writer._add_object(raster)}
+                )
+            }
+        )
+        content = DecodedStreamObject()
+        content.set_data(b"q 600 0 0 144 0 0 cm /Im0 Do Q")
+        page[NameObject("/Contents")] = writer._add_object(content)
+    output = io.BytesIO()
+    writer.write(output)
+    return output.getvalue()
 
 
 def pdf_bytes(texts=("Controlled PDF requirement: write a short report.",), *, active=False):

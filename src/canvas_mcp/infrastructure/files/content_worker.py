@@ -45,6 +45,30 @@ def main() -> None:
             raise ValueError()
         selection = ContentSelection(args["start_page"], args["end_page"])
         selection.validate()
+        # Bound trusted library/model bootstrap; decode no document before seccomp.
+        import resource
+
+        from canvas_mcp.domain.file_content import REMOTE_PARSER_MEMORY_BYTES, SUPPORTED_FORMATS
+
+        if args["format"] not in SUPPORTED_FORMATS:
+            raise ValueError()
+        resource.setrlimit(resource.RLIMIT_AS, (REMOTE_PARSER_MEMORY_BYTES,) * 2)
+        resource.setrlimit(resource.RLIMIT_CPU, (8, 8))
+        engine = None
+        if args["format"] in ("pdf", "png", "jpg", "jpeg", "webp"):
+            from canvas_mcp.infrastructure.files.ocr import OcrEngine
+
+            engine = OcrEngine()
+        if len(os.listdir("/proc/self/task")) != 1:
+            raise ValueError()
+        for entry in os.listdir("/proc/self/fd"):
+            extra = int(entry)
+            if extra not in (0, 1, 2, fd):
+                try:
+                    os.fstat(extra)
+                except OSError:
+                    continue
+                raise ValueError()
         # Fixed parser codecs may otherwise lazily import after deny-open.
         for encoding in (
             "utf-8-sig",
@@ -74,7 +98,7 @@ def main() -> None:
             if count != size or digest.hexdigest() != args["sha256"]:
                 raise ValueError()
             stream.seek(0)
-            output = {"content": extract(stream, args["format"], selection)}
+            output = {"content": extract(stream, args["format"], selection, engine=engine)}
     except Exception:
         output = {"error": "file_parse_error"}
     encoded = json.dumps(output, ensure_ascii=False, separators=(",", ":")).encode("utf-8")

@@ -227,7 +227,10 @@ def test_worker_sandbox_blocks_network_paths_processes_and_writes(tmp_path, monk
     script = """import sys,json,os,socket,subprocess
 sys.path.insert(0,sys.argv[1])
 from canvas_mcp.infrastructure.files.parser_sandbox import lock_down
+from canvas_mcp.infrastructure.files.ocr import OcrEngine
 args=json.loads(sys.stdin.buffer.read())
+engine=OcrEngine()
+assert len(os.listdir('/proc/self/task'))==1
 lock_down(args['fd'])
 blocked=[]
 for action in (lambda: open('/etc/passwd','rb'),lambda: socket.socket(),lambda: subprocess.Popen(['/bin/true']),lambda: os.write(args['fd'],b'bad')):

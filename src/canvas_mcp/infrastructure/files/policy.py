@@ -1,6 +1,7 @@
 """Locators and media evidence are untrusted. No content parsing or extraction."""
 
 import codecs
+from html import unescape
 import re
 from typing import Literal
 from urllib.parse import unquote, urljoin, urlsplit
@@ -17,9 +18,13 @@ from canvas_mcp.domain.models import FileMetadata
 from canvas_mcp.infrastructure.config.origin import normalize_origin
 
 Classification = Literal[
-    "untrusted_document", "untrusted_text", "opaque_archive", "office_candidate"
+    "untrusted_document", "untrusted_text", "opaque_archive", "office_candidate", "untrusted_image"
 ]
 MEDIA = {
+    "png": "image/png",
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+    "webp": "image/webp",
     "pdf": "application/pdf",
     "zip": "application/zip",
     "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -32,6 +37,24 @@ MEDIA = {
     "ipynb": "application/x-ipynb+json",
     "py": "text/x-python",
 }
+
+
+def reflects_capability(data: bytes, target: str) -> bool:
+    """Reject current secret echoes in common reversible encodings; never redact."""
+    normalized = unquote(unescape(target))
+    secrets = (target, normalized, normalized.partition("?")[2])
+    for encoding in ("utf-8", "utf-16-le", "utf-16-be"):
+        if any(secret and secret.encode(encoding) in data for secret in secrets):
+            return True
+    text = data.decode("utf-8", errors="ignore").replace("\\/", "/")
+    for _ in range(8):
+        if any(secret and secret in text for secret in secrets):
+            return True
+        following = unquote(unescape(text))
+        if following == text:
+            return False
+        text = following
+    return any(secret and secret in text for secret in secrets)
 
 
 def decoded_url_safe(value: str, secret: str) -> bool:
@@ -99,7 +122,9 @@ def metadata_policy(metadata: FileMetadata, maximum: int) -> tuple[str, Classifi
     if declared is not None:
         validate_media(declared.text, expected, source="canvas")
     classification: Classification = (
-        "untrusted_document"
+        "untrusted_image"
+        if extension in ("png", "jpg", "jpeg", "webp")
+        else "untrusted_document"
         if extension == "pdf"
         else "opaque_archive"
         if extension == "zip"
@@ -161,6 +186,12 @@ class BytePolicy:
         if prefix.startswith((b"mz", b"\x7felf", b"<!doctype html", b"<html", b"<svg")):
             raise DownloadRejectedError(reason=DownloadRejectionReason.UNSAFE_PREFIX)
         if self.classification == "untrusted_document" and not self.prefix.startswith(b"%PDF-"):
+            raise DownloadRejectedError(reason=DownloadRejectionReason.PREFIX_MISMATCH)
+        if self.classification == "untrusted_image" and not (
+            self.prefix.startswith((b"\x89PNG\r\n\x1a\n", b"\xff\xd8\xff"))
+            or self.prefix[:4] == b"RIFF"
+            and self.prefix[8:12] == b"WEBP"
+        ):
             raise DownloadRejectedError(reason=DownloadRejectionReason.PREFIX_MISMATCH)
         if self.classification in (
             "opaque_archive",

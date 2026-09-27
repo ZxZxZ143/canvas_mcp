@@ -151,6 +151,17 @@ class EphemeralStore:
     def validate(self, pending: EphemeralFile, extension: str) -> None:
         self._verify(pending)
         self.validate_archive(pending, extension)
+        if extension in ("png", "jpg", "jpeg", "webp"):
+            prefix = getattr(os, "pread")(pending.handle, 12, 0)
+            valid = (
+                prefix.startswith(b"\x89PNG\r\n\x1a\n")
+                if extension == "png"
+                else prefix.startswith(b"\xff\xd8\xff")
+                if extension in ("jpg", "jpeg")
+                else prefix[:4] == b"RIFF" and prefix[8:12] == b"WEBP"
+            )
+            if not valid:
+                raise DownloadRejectedError(reason=DownloadRejectionReason.PREFIX_MISMATCH)
         if extension in ("txt", "md", "csv", "json"):
             # Streaming BytePolicy already verified full UTF-8/no NUL. Here
             # reject recognized nontext signatures before launching a parser.

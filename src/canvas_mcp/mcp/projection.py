@@ -380,6 +380,7 @@ def file_content(value: FileContent) -> dict[str, Any]:
     return {
         "file": {
             "file_id": _entity(value.metadata.id),
+            "file_reference": file_reference(value.metadata.source),
             "display_name": _text(
                 replace(
                     name, text=name.text[:256], truncated=name.truncated or len(name.text) > 256
@@ -405,6 +406,12 @@ def file_content(value: FileContent) -> dict[str, Any]:
             "start_page": value.start_page,
             "end_page": value.end_page,
             "omissions": list(value.omissions),
+            "extraction_mode": value.extraction_mode,
+            "ocr_used": bool(value.ocr_pages),
+            "ocr_pages": list(value.ocr_pages),
+            "native_pages": list(value.native_pages),
+            "page_count_processed": value.page_count_processed,
+            "limitations": list(value.limitations),
             "trust": "untrusted",
         },
     }

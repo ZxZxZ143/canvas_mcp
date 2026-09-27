@@ -314,7 +314,11 @@ class ManagedStore:
         content_type: str,
         redirects: int,
         classification: Literal[
-            "untrusted_document", "untrusted_text", "opaque_archive", "office_candidate"
+            "untrusted_document",
+            "untrusted_text",
+            "opaque_archive",
+            "office_candidate",
+            "untrusted_image",
         ],
     ) -> DownloadedFile:
         assert self._fs is not None and self._session is not None

@@ -13,6 +13,7 @@ from canvas_mcp.application.connection import ConnectionService
 from canvas_mcp.application.files import FileService
 from canvas_mcp.application.file_content import FileContentService
 from canvas_mcp.domain.file_content import ContentSelection, FileContent
+from canvas_mcp.domain.remote_artifact import RemoteArtifact
 from canvas_mcp.infrastructure.files.download import CanvasDownloadClient
 from canvas_mcp.infrastructure.files.manager import FileDownloadManager
 from canvas_mcp.infrastructure.files.storage import ManagedStore
@@ -109,6 +110,11 @@ class CanvasConnection:
 
     async def download_file(self, reference: FileReference) -> Result[DownloadedFile]:
         return await self._files().download_file(self._context(download=True), reference)
+
+    async def download_original(self, reference: FileReference) -> Result[RemoteArtifact]:
+        if self.file_content is None:
+            raise UnsupportedCapabilityError()
+        return await self.file_content.download_original(self._context(download=True), reference)
 
     async def get_file_content(
         self, reference: FileReference, selection: ContentSelection = ContentSelection()

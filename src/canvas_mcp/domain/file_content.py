@@ -14,7 +14,14 @@ REMOTE_FILE_MAX_TABLE_CELLS = 2_000
 REMOTE_FILE_TIMEOUT_SECONDS = 50.0
 REMOTE_PARSER_TIMEOUT_SECONDS = 20.0
 REMOTE_PARSER_MEMORY_BYTES = 256 * 1024 * 1024
-SUPPORTED_FORMATS = frozenset(("pdf", "docx", "pptx", "txt", "md", "csv", "json"))
+IMAGE_FORMATS = frozenset(("png", "jpg", "jpeg", "webp"))
+SUPPORTED_FORMATS = frozenset(("pdf", "docx", "pptx", "txt", "md", "csv", "json")) | IMAGE_FORMATS
+OCR_MAX_PAGES = 3
+OCR_MAX_SOURCE_PIXELS = 12_000_000
+OCR_MAX_RENDER_PIXELS = 4_000_000
+OCR_MAX_DIMENSION = 8_192
+OCR_NATIVE_MIN_CHARACTERS = 80
+REMOTE_ARTIFACT_MAX_BYTES = 4 * 1024 * 1024
 
 
 def bounded_json(value: object, maximum: int) -> tuple[str, bool]:
@@ -117,3 +124,8 @@ class FileContent:
     start_page: int
     end_page: int | None
     omissions: tuple[str, ...] = ()
+    extraction_mode: Literal["native", "ocr", "hybrid"] = "native"
+    ocr_pages: tuple[int, ...] = ()
+    page_count_processed: int = 0
+    native_pages: tuple[int, ...] = ()
+    limitations: tuple[str, ...] = ()
