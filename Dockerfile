@@ -19,7 +19,7 @@ COPY requirements-remote-check.lock ./
 RUN /opt/venv/bin/pip install --no-cache-dir --no-deps --target /opt/check-deps -r requirements-remote-check.lock \
     && groupadd --gid 10001 canvas \
     && useradd --uid 10001 --gid canvas --no-create-home --shell /usr/sbin/nologin canvas
-COPY tests/conftest.py tests/file_content_fixtures.py tests/unit/test_document_content.py tests/unit/test_ocr_selection.py tests/security/test_ephemeral_storage.py tests/integration/test_remote_file_content.py tests/integration/test_remote_ocr.py /verify/
+COPY tests/conftest.py tests/file_content_fixtures.py tests/unit/test_document_content.py tests/unit/test_ocr_selection.py tests/unit/test_ocr_render.py tests/security/test_ephemeral_storage.py tests/integration/test_remote_file_content.py tests/integration/test_remote_ocr.py /verify/
 USER 10001:10001
 WORKDIR /verify
 # The build must prove actual Linux file containment and killable parser isolation.

@@ -121,8 +121,15 @@ os.write(2,json.dumps({'fixed_ocr_diagnostics':events}).encode())
             result = None
         for process in processes:
             diagnostic = await process.stderr.read(4096)
+            # Native shutdown warnings may follow our JSON. Print only our
+            # allowlisted code-location/type record, never raw native stderr.
+            import json
+
+            text = diagnostic.decode()
+            start = text.find('{"fixed_ocr_diagnostics":')
+            fixed = json.JSONDecoder().raw_decode(text[start:])[0] if start >= 0 else {}
             print(
-                f"OCR_FIXED_DIAGNOSTIC format={fmt} exit={process.returncode} {diagnostic.decode()}"
+                f"OCR_FIXED_DIAGNOSTIC format={fmt} exit={process.returncode} {json.dumps(fixed)}"
             )
         assert failure is None, failure
         assert result and "report" in result["units"][0]["text"].lower()

@@ -16,6 +16,7 @@ MAX_WORKER_OUTPUT_BYTES = 131_072
 
 def main() -> None:
     output: dict[str, object] = {"error": "file_parse_error"}
+    engine = None
     try:
         if sys.platform != "linux":
             raise ValueError()
@@ -54,7 +55,6 @@ def main() -> None:
             raise ValueError()
         resource.setrlimit(resource.RLIMIT_AS, (REMOTE_PARSER_MEMORY_BYTES,) * 2)
         resource.setrlimit(resource.RLIMIT_CPU, (8, 8))
-        engine = None
         if args["format"] in ("pdf", "png", "jpg", "jpeg", "webp"):
             from canvas_mcp.infrastructure.files.ocr import OcrEngine
 
@@ -101,6 +101,12 @@ def main() -> None:
             output = {"content": extract(stream, args["format"], selection, engine=engine)}
     except Exception:
         output = {"error": "file_parse_error"}
+    finally:
+        if engine is not None:
+            try:
+                engine.close()
+            except Exception:
+                output = {"error": "file_parse_error"}
     encoded = json.dumps(output, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     if len(encoded) > MAX_WORKER_OUTPUT_BYTES:
         encoded = b'{"error":"file_parse_error"}'

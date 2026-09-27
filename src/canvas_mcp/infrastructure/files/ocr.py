@@ -72,6 +72,11 @@ class OcrEngine:
             raise ValueError()
         self.lib.TessBaseAPISetPageSegMode(self.handle, 3)
 
+    def close(self) -> None:
+        if self.handle:
+            self.lib.TessBaseAPIDelete(self.handle)
+            self.handle = None
+
     def recognize(self, image: Image.Image) -> str:
         width, height = image.size
         if not 0 < width * height <= OCR_MAX_RENDER_PIXELS:
@@ -95,7 +100,9 @@ class OcrEngine:
         if not image_signature(data, fmt):
             raise ValueError()
         expected = {"png": "PNG", "jpg": "JPEG", "jpeg": "JPEG", "webp": "WEBP"}[fmt]
-        with Image.open(io.BytesIO(data), formats=[expected]) as image:
+        # Use only the already registered supported decoder. Image.open on a
+        # BytesIO otherwise attempts generic plugin imports after deny-open.
+        with Image.OPEN[expected][0](io.BytesIO(data), "") as image:
             width, height = image.size
             if (
                 not 0 < width <= OCR_MAX_DIMENSION
@@ -111,22 +118,28 @@ class OcrEngine:
     def pdf_page(self, data: bytes, number: int) -> str:
         # Bytes exclusively: never give PDFium a filename or network URL.
         with pdfium.PdfDocument(data) as document:
-            with document[number - 1] as page:
+            page = document[number - 1]
+            try:
                 width, height = page.get_size()
                 if not all(
                     math.isfinite(value) and 0 < value <= 14_400 for value in (width, height)
                 ):
                     raise ValueError()
                 scale = min(2.5, math.sqrt(OCR_MAX_RENDER_PIXELS / (width * height)) * 0.99)
-                with page.render(
+                bitmap = page.render(
                     scale=scale,
                     grayscale=True,
                     may_draw_forms=False,
                     draw_annots=False,
                     limit_image_cache=True,
-                ) as bitmap:
+                )
+                try:
                     image = bitmap.to_pil()
                     try:
                         return self.recognize(image)
                     finally:
                         image.close()
+                finally:
+                    bitmap.close()
+            finally:
+                page.close()

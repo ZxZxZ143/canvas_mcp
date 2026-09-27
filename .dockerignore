@@ -38,6 +38,7 @@ tests/**
 !tests/integration/test_remote_file_content.py
 !tests/integration/test_remote_ocr.py
 !tests/unit/test_ocr_selection.py
+!tests/unit/test_ocr_render.py
 
 # Common exclusions take precedence over directory exceptions.
 **/__pycache__
