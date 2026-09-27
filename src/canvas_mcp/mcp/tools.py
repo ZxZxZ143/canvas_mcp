@@ -7,7 +7,7 @@ from collections.abc import Awaitable, Callable, AsyncIterator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, Any, Literal, TypeVar
+from typing import Annotated, Any, Literal, TypeVar, cast
 from uuid import uuid4
 
 from mcp.server.fastmcp import FastMCP
@@ -544,6 +544,7 @@ def create_server(
             ARTIFACT_URI,
             LEGACY_ARTIFACT_URI,
             PREVIOUS_ARTIFACT_URI,
+            SPLIT_ARTIFACT_URI,
         )
 
         def original_file_card() -> str:
@@ -554,6 +555,7 @@ def create_server(
             (ARTIFACT_URI, "canvas_original_file"),
             (LEGACY_ARTIFACT_URI, "canvas_original_file_legacy"),
             (PREVIOUS_ARTIFACT_URI, "canvas_original_file_previous"),
+            (SPLIT_ARTIFACT_URI, "canvas_original_file_split"),
         ):
             server.resource(
                 card_uri,
@@ -580,13 +582,15 @@ def create_server(
             source_kind: SourceKind = "course_file",
             source_id: PositiveId | None = None,
             module_id: PositiveId | None = None,
-        ) -> Annotated[CallToolResult, dto.McpResult]:
+        ) -> dto.McpResult:
             try:
                 async with factory() as service:
                     result = await service.download_original(
                         _reference(course_id, file_id, source_kind, source_id, module_id)
                     )
-                    return artifact_result(result, include_original=False)
+                    prepared = artifact_result(result, include_original=False)
+                    assert prepared.structuredContent is not None
+                    return cast(dto.McpResult, prepared.structuredContent)
             except Exception as error:
                 raise _error(error) from None
 

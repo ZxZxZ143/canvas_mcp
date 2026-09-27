@@ -1,8 +1,9 @@
 """Static inert original-file card. No document HTML, network fetch or credentials."""
 
-ARTIFACT_URI = "ui://canvas/original-file-v3.html"
+ARTIFACT_URI = "ui://canvas/original-file-v4.html"
 LEGACY_ARTIFACT_URI = "ui://canvas/original-file-v1.html"
 PREVIOUS_ARTIFACT_URI = "ui://canvas/original-file-v2.html"
+SPLIT_ARTIFACT_URI = "ui://canvas/original-file-v3.html"
 ARTIFACT_HTML = r"""<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
 <style>body{font:14px system-ui;margin:16px;color:inherit}button,a{font:inherit;padding:10px 14px}p{overflow-wrap:anywhere}#download{display:none}</style>
@@ -16,7 +17,8 @@ const status=document.getElementById("status"),button=document.getElementById("a
 let artifact=null,busy=false;
 let nextId=2;
 const pending=new Map();
-function payload(result){return result?._meta?.canvasArtifact || result?.canvasArtifact || result?.mcp_tool_result?._meta?.canvasArtifact || result?.call_tool_result?._meta?.canvasArtifact;}
+function payload(result){return result?._meta?.canvasArtifact || result?.canvasArtifact || result?.structuredContent?.data || result?.data || payloadEnvelope(result?.mcp_tool_result) || payloadEnvelope(result?.call_tool_result);}
+function payloadEnvelope(result){return result?._meta?.canvasArtifact || result?.structuredContent?.data;}
 function request(method,params){
  const id=nextId++;
  return new Promise((resolve,reject)=>{
@@ -33,6 +35,7 @@ function receive(result){
 function globals(){
  const meta=window.openai?.toolResponseMetadata;
  receive(meta?.mcp_tool_result);receive(meta?.call_tool_result);receive(meta);
+ receive(window.openai?.toolOutput);
 }
 window.addEventListener("openai:set_globals",globals);
 window.addEventListener("message",event=>{

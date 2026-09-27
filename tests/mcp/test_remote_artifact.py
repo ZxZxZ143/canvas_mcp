@@ -34,8 +34,10 @@ def test_prepare_is_compact_and_ui_only_fetch_preserves_hidden_original():
     server = create_server(Connection(), None, transport="http")
     args = {"course_id": 8, "file_id": 50}
     prepared = asyncio.run(server.call_tool("canvas_download_file", args))
-    assert "base64" not in prepared.model_dump_json()
-    assert len(prepared.model_dump_json().encode()) < 4096
+    assert isinstance(prepared, tuple) and len(prepared) == 2
+    visible_prepared = json.dumps(prepared[1]) + repr(prepared[0])
+    assert "base64" not in visible_prepared
+    assert len(visible_prepared.encode()) < 4096
     output = asyncio.run(server.call_tool("canvas_fetch_original_for_card", args))
     assert isinstance(output, CallToolResult)
     assert base64.b64decode(output.meta["canvasArtifact"]["base64"]) == BODY
@@ -123,6 +125,8 @@ def test_saved_card_reference_survives_upgrade_without_expanding_resources():
     assert saved.meta["ui"]["csp"] == {"connectDomains": [], "resourceDomains": []}
     previous = list(asyncio.run(server.read_resource("ui://canvas/original-file-v2.html")))[0]
     assert previous.content == current.content and previous.meta == current.meta
+    split = list(asyncio.run(server.read_resource("ui://canvas/original-file-v3.html")))[0]
+    assert split.content == current.content and split.meta == current.meta
     tools = asyncio.run(server.list_tools())
     download = next(tool for tool in tools if tool.name == "canvas_download_file")
     assert download.meta["ui"]["resourceUri"] == ARTIFACT_URI != old_uri
@@ -130,7 +134,12 @@ def test_saved_card_reference_survives_upgrade_without_expanding_resources():
         asyncio.run(server.read_resource("ui://canvas/unknown-file.html"))
     local = create_server(Connection(), None)
     assert asyncio.run(local.list_resources()) == []
-    for uri in (old_uri, "ui://canvas/original-file-v2.html", ARTIFACT_URI):
+    for uri in (
+        old_uri,
+        "ui://canvas/original-file-v2.html",
+        "ui://canvas/original-file-v3.html",
+        ARTIFACT_URI,
+    ):
         with pytest.raises(Exception, match="Unknown resource"):
             asyncio.run(local.read_resource(uri))
 
@@ -156,6 +165,7 @@ def test_actual_http_endpoint_accepts_bounded_hidden_original(size):
         )
         assert prepared.status_code == 200 and not prepared.json()["result"].get("isError")
         assert "base64" not in prepared.text and len(prepared.content) < 4096
+        assert "_meta" not in prepared.json()["result"]
         response = rpc(
             connection,
             "tools/call",
