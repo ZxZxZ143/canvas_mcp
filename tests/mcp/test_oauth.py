@@ -4,7 +4,10 @@ import asyncio
 import io
 import json
 import time
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
+from datetime import datetime
+from threading import Barrier
 
 import jwt
 import pytest
@@ -206,6 +209,184 @@ def test_wrong_subject_file_content_never_composes_canvas_storage_or_parser(key,
         )
         assert response.status_code == 403
     assert not opened
+
+
+def test_expired_initial_access_is_replaced_by_independent_refreshed_access(key, monkeypatch):
+    """Synthetic provider outputs only: this server never performs a refresh exchange."""
+    issued = int(time.time())
+    clock = [issued]
+
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime.fromtimestamp(clock[0], tz=tz)
+
+    monkeypatch.setattr(jwt.api_jwt, "datetime", Clock)
+    initial = token(key, iat=issued, exp=issued + 120, jti="synthetic-initial")
+    renewed = token(
+        key,
+        iat=issued + 121,
+        exp=issued + 241,
+        jti="synthetic-renewed",
+        scope="canvas:read offline_access",
+    )
+    logs = io.StringIO()
+    pool = Pool(key)
+    connection, opened = client(key, logs=logs, pool=pool)
+    with connection:
+        request = {"name": "canvas_list_courses", "arguments": {}}
+        first = rpc(connection, "tools/call", request, headers(initial))
+        assert first.status_code == 200 and not first.json()["result"].get("isError")
+        clock[0] = issued + 121
+        expired = rpc(connection, "tools/call", request, headers(initial))
+        assert expired.status_code == 401
+        assert 'error="invalid_token"' in expired.headers["WWW-Authenticate"]
+        assert len(opened) == 1
+        second = rpc(connection, "tools/call", request, headers(renewed))
+        assert second.status_code == 200 and not second.json()["result"].get("isError")
+    assert len(opened) == 2
+    assert pool.calls == [
+        ISSUER + ".well-known/openid-configuration",
+        ISSUER + ".well-known/jwks.json",
+    ]
+    for private in (initial, renewed, CANVAS_TOKEN, SUBJECT):
+        assert private not in logs.getvalue()
+        assert private not in first.text + expired.text + second.text
+
+
+@pytest.mark.parametrize(
+    "changes,status,code",
+    [
+        ({"scope": "offline_access"}, 403, "insufficient_scope"),
+        ({"scope": "canvas:write offline_access"}, 403, "insufficient_scope"),
+        ({"sub": "auth0|wrong-refreshed-user"}, 403, "authorization_denied"),
+        ({"aud": "https://another.example/mcp"}, 401, "invalid_token"),
+        ({"aud": [BASE + "/mcp", "https://another.example/api"]}, 401, "invalid_token"),
+        ({"iss": "https://another.auth0.com/"}, 401, "invalid_token"),
+        ({"exp": 1}, 401, "invalid_token"),
+    ],
+)
+def test_refreshed_access_rechecks_identity_resource_expiry_and_business_scope(
+    key, changes, status, code
+):
+    logs = io.StringIO()
+    connection, opened = client(key, logs=logs)
+    renewed = token(
+        key, jti="synthetic-renewed", **{"scope": "canvas:read offline_access", **changes}
+    )
+    with connection:
+        response = rpc(
+            connection,
+            "tools/call",
+            {"name": "canvas_get_profile", "arguments": {}},
+            headers(renewed),
+        )
+        assert response.status_code == status
+        assert code in response.text
+    assert not opened
+    assert renewed not in response.text + logs.getvalue()
+
+
+def test_opaque_refresh_token_cannot_be_mcp_bearer_or_reach_auth0_or_canvas(key):
+    synthetic_refresh = "synthetic_refresh_" + "NOT_A_RESOURCE_ACCESS_TOKEN_" * 3
+    pool = Pool(key)
+    logs = io.StringIO()
+    connection, opened = client(key, logs=logs, pool=pool)
+    with connection:
+        response = rpc(
+            connection,
+            "tools/call",
+            {"name": "canvas_get_profile", "arguments": {}},
+            headers(synthetic_refresh),
+        )
+        assert response.status_code == 401
+        assert 'error="invalid_token"' in response.headers["WWW-Authenticate"]
+        assert "invalid_token" in response.text
+    assert not opened and not pool.calls
+    assert synthetic_refresh not in response.text + logs.getvalue()
+
+
+def test_new_resource_server_accepts_refreshed_access_without_original_exchange(key):
+    initial = token(key, jti="synthetic-original-access")
+    renewed = token(
+        key,
+        iat=int(time.time()),
+        exp=int(time.time()) + 900,
+        jti="synthetic-new-access",
+        scope="canvas:read offline_access",
+    )
+    request = {"name": "canvas_get_profile", "arguments": {}}
+    old_server, old_opened = client(key)
+    with old_server:
+        original = rpc(old_server, "tools/call", request, headers(initial))
+        assert original.status_code == 200
+    fresh_pool = Pool(key)
+    new_server, new_opened = client(key, pool=fresh_pool)
+    with new_server:
+        fresh = rpc(new_server, "tools/call", request, headers(renewed))
+        assert fresh.status_code == 200
+        assert (
+            original.json()["result"]["structuredContent"]["id"]
+            == fresh.json()["result"]["structuredContent"]["id"]
+        )
+        for path in ("/refresh", "/oauth/token", "/oauth/revoke"):
+            assert new_server.post(path, json={"grant_type": "refresh_token"}).status_code == 404
+        resource = new_server.get("/.well-known/oauth-protected-resource").json()
+        assert resource["scopes_supported"] == ["canvas:read"]
+        listed = rpc(new_server, "tools/list", headers=headers(renewed)).json()["result"]["tools"]
+        assert len(listed) == 15
+        assert all(
+            t["securitySchemes"] == [{"type": "oauth2", "scopes": ["canvas:read"]}] for t in listed
+        )
+    assert len(old_opened) == len(new_opened) == 1
+    assert fresh_pool.calls == [
+        ISSUER + ".well-known/openid-configuration",
+        ISSUER + ".well-known/jwks.json",
+    ]
+
+
+def test_concurrent_access_tokens_do_not_share_oauth_session_or_refresh_state(key, monkeypatch):
+    issued = int(time.time())
+
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime.fromtimestamp(issued + 119, tz=tz)
+
+    monkeypatch.setattr(jwt.api_jwt, "datetime", Clock)
+    values = [
+        token(key, iat=issued, exp=issued + 120, jti="synthetic-concurrent-initial"),
+        token(
+            key,
+            iat=issued + 119,
+            exp=issued + 1019,
+            jti="synthetic-concurrent-renewed",
+            scope="canvas:read offline_access",
+        ),
+    ]
+    barrier = Barrier(2)
+    pool = Pool(key)
+    logs = io.StringIO()
+    connection, opened = client(key, logs=logs, pool=pool)
+
+    def invoke(value):
+        barrier.wait(timeout=5)
+        return rpc(
+            connection,
+            "tools/call",
+            {"name": "canvas_get_profile", "arguments": {}},
+            headers(value),
+        )
+
+    with connection, ThreadPoolExecutor(max_workers=2) as executor:
+        responses = list(executor.map(invoke, values))
+        assert all(
+            r.status_code == 200 and not r.json()["result"].get("isError") for r in responses
+        )
+        assert len({r.json()["result"]["structuredContent"]["id"] for r in responses}) == 1
+        assert all("Mcp-Session-Id" not in r.headers for r in responses)
+    assert len(opened) == 2 and len(pool.calls) == 2
+    assert all(value not in logs.getvalue() for value in values)
 
 
 def test_auth0_oidc_userinfo_audience_is_allowed_only_with_our_resource(key):

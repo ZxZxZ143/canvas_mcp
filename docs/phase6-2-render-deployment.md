@@ -2,9 +2,11 @@
 
 Status: Phase 6.2 complete as a personal read-only beta. Render Free, real Auth0
 login/consent/code exchange and ChatGPT Web queries passed against real Canvas.
-Post-idle recovery also passed; it required reconnecting an expired OAuth session.
-The service is not always-on, remote PDF content remains unavailable and Phase
-6.3 has not started.
+The original post-idle test required reconnecting an expired OAuth session.
+Phase 6.3 remote file text is now complete; see [its limits and evidence](phase6-3-remote-files.md).
+Phase 6.2.1 enables bounded rotating refresh tokens with the same short access
+TTL; see [current OAuth configuration and live evidence](oauth-session-lifecycle.md).
+The service remains a personal beta and is not always-on.
 Render replaces Railway because the available Railway workspace had an expired
 trial, no credits and an invoice that blocked free deployment. That history is
 preserved in [the resource-server architecture record](phase6-2-remote-personal.md).
@@ -92,25 +94,30 @@ client/API grant. If a required feature is paid, stop that path and assess a
 documented free supported alternative without weakening authentication.
 
 For the verified free path, use a Native public strict third-party Auth0 client,
-Authorization Code only, with one user-delegated API grant for `canvas:read` and
+Authorization Code and Refresh Token, with one user-delegated API grant for `canvas:read` and
 token-endpoint authentication `none`. ChatGPT's successful discovery may default
 to DCR because Auth0 advertises a registration endpoint even when tenant DCR is
 disabled. Select **Custom OAuth client**, enter the public client ID, leave client
-secret empty, select `none` and keep only `canvas:read`. Disable optional OIDC
-profile/offline scopes; strict third-party API authorization is the chosen flow.
+secret empty and select `none`. Select `canvas:read` as the business scope and
+enter `offline_access` in Base scopes. Leave optional OIDC profile scopes unchecked;
+strict third-party API authorization is the chosen flow.
 Recheck the actual callback after discovery: the live form can replace its initial
 bootstrap callback. Save that exact callback in Auth0 before connecting.
 
-The verified API access-token lifetime is 900 seconds. Offline access and the
-client's refresh-token grant are disabled. A later ChatGPT invocation may require
-reconnecting through the existing Auth0 session after token expiry; this is
-separate from Render's idle spin-down and does not justify adding broader scopes.
+The API access-token lifetime remains 900 seconds. Enable API Allow Offline
+Access and the client's Refresh Token grant with rotation, a 5-second overlap,
+7-day inactivity and 30-day absolute lifetime. The absolute family limit does
+not grow with rotation. ChatGPT renews directly with Auth0; MCP verifies only
+access tokens and requires only `canvas:read`. Render idle spin-down is separate.
+See the [session lifecycle guide](oauth-session-lifecycle.md) for saved settings,
+actual scope UI, revocation and conditions requiring manual reconnect.
 
 In ChatGPT Web's current custom app/MCP management, enter the actual `/mcp` URL
 and complete Auth0 login/consent. Verify resource/audience, scope and PKCE through
 the actual flow without printing authorization codes, JWTs or private subject.
 Test courses, coursework due this week and explanation of the next assignment
-against real Canvas. No mobile compatibility or Phase 6.3 capability is claimed.
+against real Canvas. The HTTP surface now has 15 read tools, including bounded
+remote file text, without the local downloader. No mobile compatibility is claimed.
 
 ## Explicit Canvas smoke on Free
 
@@ -167,7 +174,7 @@ or seamless cold starts without observed evidence.
 Record Render build success, Python/UID runtime evidence, Free/one instance,
 actual HTTPS origin, health 200, safe build/runtime logs and startup duration.
 Verify root and path-aware protected-resource metadata, no-auth 401 OAuth challenge,
-wrong valid Auth0 subject 403 before Canvas composition, initialize, 14 tools,
+wrong valid Auth0 subject 403 before Canvas composition, initialize, 15 tools,
 profile, courses and upcoming work. Synthetic wrong-user evidence does not replace
 the live test when a safe second enrolled identity is available.
 
@@ -176,13 +183,18 @@ paths. Logs must contain no PAT/JWT/subject, course names, assignment text,
 arguments, local paths or signed URLs. Do not publish raw private logs.
 
 To revoke remote access set auth mode `deny` and redeploy, or suspend this service.
-Revoke the dedicated Auth0 client/API grant and rotate the Canvas PAT only when
-explicitly authorized. Use the existing local personal stdio plugin 0.1.0 as
+Revoke the enrolled user's Auth0 application grant to prevent further refresh.
+Existing JWTs can remain valid until expiry (up to 900 seconds); use deny mode
+or service suspension for immediate service denial. OAuth revocation does not
+require changing the Canvas PAT. Use the existing local personal stdio plugin 0.1.0 as
 fallback; it retains its 15 tools and Windows Credential Manager independently.
 
-## Current evidence
+## Historical Phase 6.2 evidence
 
-Verified on 2026-09-27:
+Verified on 2026-09-27 before Phase 6.3 and persistent OAuth. The following
+records the original 14-tool deployment and no-refresh configuration;
+[Phase 6.3](phase6-3-remote-files.md) and [Phase 6.2.1](oauth-session-lifecycle.md)
+supersede those capability/session limits:
 
 - Render service `srv-dasdor60tbcc73evk93g`, Docker Free, Oregon, one instance;
   workspace Hobby with no card on file and projected charges of $0. Auto deploy
