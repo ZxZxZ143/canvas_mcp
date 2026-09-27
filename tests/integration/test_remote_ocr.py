@@ -76,6 +76,60 @@ def test_actual_ocr_resource_measurement(tmp_path):
     )
 
 
+@pytest.mark.parametrize("fmt", ["png", "pdf"])
+def test_valid_ocr_with_fixed_runtime_diagnostics(tmp_path, monkeypatch, fmt):
+    """Build-only diagnostic: fixed code locations/types, never document/exception text."""
+    from canvas_mcp.infrastructure.files import content_runner as runner
+
+    processes = []
+    original = asyncio.create_subprocess_exec
+
+    async def recording(*args, **kwargs):
+        kwargs["stderr"] = asyncio.subprocess.PIPE
+        process = await original(*args, **kwargs)
+        processes.append(process)
+        return process
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", recording)
+    monkeypatch.setattr(
+        runner,
+        "_BOOTSTRAP",
+        """import sys,json,os
+sys.path.insert(0,sys.argv[1])
+from canvas_mcp.infrastructure.files.content_worker import main
+events=[]
+def trace(frame,event,arg):
+    name=frame.f_code.co_filename.rsplit('/',1)[-1]
+    if event=='exception' and name in ('ocr.py','content_parser.py','content_worker.py') and len(events)<20:
+        events.append([name,frame.f_code.co_name,frame.f_lineno,type(arg[1]).__name__])
+    return trace
+sys.settrace(trace)
+main()
+sys.settrace(None)
+os.write(2,json.dumps({'fixed_ocr_diagnostics':events}).encode())
+""",
+    )
+
+    async def run():
+        failure = None
+        try:
+            result = await parse(
+                tmp_path, image_bytes("PNG") if fmt == "png" else scanned_pdf_bytes(), fmt
+            )
+        except Exception as error:
+            failure = type(error).__name__
+            result = None
+        for process in processes:
+            diagnostic = await process.stderr.read(4096)
+            print(
+                f"OCR_FIXED_DIAGNOSTIC format={fmt} exit={process.returncode} {diagnostic.decode()}"
+            )
+        assert failure is None, failure
+        assert result and "report" in result["units"][0]["text"].lower()
+
+    asyncio.run(run())
+
+
 @pytest.mark.parametrize("case", ["mismatch", "malformed", "dimensions", "animated"])
 def test_invalid_images_fail_closed_and_cleanup(tmp_path, case):
     import io
