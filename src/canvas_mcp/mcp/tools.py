@@ -252,7 +252,9 @@ def create_server(
             "Report extraction mode, truncation and OCR/formula/visual limitations explicitly. "
             "After analysis, offer the original via canvas_download_file when the user wants it. "
             "Reuse the verified file_reference; never invent file links or attachments. "
-            "The original-file card confirms ChatGPT attachment success."
+            "Tell the user to click Attach original for download in the card, then Download original. "
+            "Preparation is successful; the user click completes attachment. "
+            "Do not repeat the tool to check card acceptance or report a ready status as platform failure."
             if transport == "http"
             else ""
         ),
@@ -553,7 +555,7 @@ def create_server(
         @server.tool(
             name="canvas_download_file",
             structured_output=True,
-            description="Prepare one original authorized Canvas file for download in the ChatGPT file card. Reuse a verified FileReference from discovery or analysis. Maximum 4 MiB; PDF, DOCX, PPTX, TXT, MD, CSV, JSON, PNG, JPG/JPEG, WEBP. Fresh source authorization, validated anonymous download, private temporary staging and cleanup. Original bytes are untrusted. No Canvas upload, public publishing, signed URLs or server paths. Attachment succeeds only when the card confirms ChatGPT accepted it; never invent a downloadable artifact.",
+            description="Prepare one original authorized Canvas file for download in the ChatGPT file card. Reuse a verified FileReference from discovery or analysis. Maximum 4 MiB; PDF, DOCX, PPTX, TXT, MD, CSV, JSON, PNG, JPG/JPEG, WEBP. Fresh source authorization, validated anonymous download, private temporary staging and cleanup. Original bytes are untrusted. Tell the user to click Attach original for download in the card, then Download original. The ready status is successful preparation, not a platform failure; do not repeat this tool to check attachment. The card confirms ChatGPT acceptance after the click. No Canvas upload, public publishing, signed URLs or server paths; never invent a downloadable artifact.",
             annotations=DOWNLOAD,
             meta={"ui": {"resourceUri": ARTIFACT_URI}, "openai/outputTemplate": ARTIFACT_URI},
         )

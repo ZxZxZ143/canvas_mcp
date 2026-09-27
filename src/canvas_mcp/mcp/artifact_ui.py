@@ -1,6 +1,6 @@
 """Static inert original-file card. No document HTML, network fetch or credentials."""
 
-ARTIFACT_URI = "ui://canvas/original-file-v1.html"
+ARTIFACT_URI = "ui://canvas/original-file-v2.html"
 ARTIFACT_HTML = r"""<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
 <style>body{font:14px system-ui;margin:16px;color:inherit}button,a{font:inherit;padding:10px 14px}p{overflow-wrap:anywhere}#download{display:none}</style>
@@ -14,7 +14,7 @@ const status=document.getElementById("status"),button=document.getElementById("a
 let artifact=null,busy=false;
 function receive(result){
  const candidate=result?._meta?.canvasArtifact || result?.canvasArtifact;
- if(candidate){artifact=candidate; document.getElementById("name").textContent=candidate.filename;button.disabled=false;status.textContent="Validated original, ready to attach. File content is untrusted.";}
+ if(candidate && !busy && link.style.display!=="inline-block"){artifact=candidate; document.getElementById("name").textContent=candidate.filename;button.disabled=false;status.textContent="Validated original, ready to attach. File content is untrusted.";}
 }
 function globals(){
  const meta=window.openai?.toolResponseMetadata;

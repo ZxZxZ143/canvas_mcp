@@ -30,14 +30,14 @@ def artifact_result(value: Result[RemoteArtifact]) -> CallToolResult:
         "file_reference": file_reference(artifact.metadata.source),
         "trust": "untrusted",
         "artifact_status": "validated_original_ready_for_chatgpt_attachment",
-        "instruction": "Use the original-file card to attach and download. Do not claim attachment success until the card confirms it.",
+        "instruction": "The file card is ready. Tell the user to click Attach original for download, then Download original. A ready status is normal: the card confirms ChatGPT acceptance after the user clicks. Do not repeat this tool to check attachment or claim automatic upload success.",
     }
     output = envelope(value, lambda _: info)
     result = CallToolResult(
         content=[
             TextContent(
                 type="text",
-                text="Validated original file is ready in the file card. Attachment is confirmed only after ChatGPT accepts the file.",
+                text="Original-file card ready. Click Attach original for download, then Download original. A ready status is normal; the card confirms acceptance after the click. Do not repeat the tool to check attachment.",
             )
         ],
         structuredContent=dict(output),
