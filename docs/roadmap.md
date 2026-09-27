@@ -6,7 +6,7 @@ Version 0.1.0 completes Phases 1–5: connection foundation, academic reads, sec
 
 Phase 6.1 prepares a local Streamable HTTP adapter sharing the stable stdio tools, default-deny/development authentication, scoped credential ports, HTTP limits and Docker packaging. See [architecture and boundaries](phase6-remote-mcp.md) and [actual validation](phase6-remote-mcp-validation.md).
 
-Phase 6.2 adds personal Auth0 token validation and scoped remote runtime secrets. Render Free Web Service is the active hosting target after Railway could not meet the zero-cost constraint. Implementation is present; completion requires live Render, OAuth and ChatGPT evidence. See [Render setup and status](phase6-2-render-deployment.md) and [architecture and Railway history](phase6-2-remote-personal.md). Phase 6.3 will implement remote files, but must not begin automatically. Phase 6.4 may add a mobile web/PWA companion. No native mobile support is claimed. Keep Canvas read-only throughout Phase 6.
+Phase 6.2 is complete as a personal read-only beta: real Auth0 token validation, scoped Render runtime secrets, Canvas remote smoke, ChatGPT Web queries and recovery after more than 16 idle minutes were verified. Render Free Web Service replaced Railway to meet the zero-cost constraint. Recovery required manual OAuth reconnect after token expiry; no always-on guarantee is made. See [Render setup and actual evidence](phase6-2-render-deployment.md) and [architecture and Railway history](phase6-2-remote-personal.md). Phase 6.3 will implement remote files, but must not begin automatically. Phase 6.4 may add a mobile web/PWA companion. No native mobile support is claimed. Keep Canvas read-only throughout Phase 6.
 
 ## Phase 7 — Safe Canvas Write Capabilities
 

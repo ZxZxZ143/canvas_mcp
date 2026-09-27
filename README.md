@@ -12,7 +12,7 @@ Canvas Student is a personal, read-only Canvas LMS integration for Codex. A loca
 | Tested platform | Windows |
 | Live-tested installation | Narxoz University Canvas |
 
-The stable plugin is a local, single-user installation. Phase 6.1 adds a locally tested Streamable HTTP scaffold with default-deny authentication; it is not publicly deployed or connected to ChatGPT. See the [remote MCP guide](docs/phase6-remote-mcp.md).
+The stable plugin is a local, single-user installation. Phase 6.1 adds a Streamable HTTP adapter with default-deny authentication. Phase 6.2 has a personal Auth0-protected Render Free deployment connected to ChatGPT Web, with real Canvas queries and post-idle recovery verified. See [actual remote deployment status](docs/phase6-2-render-deployment.md) and the [HTTP architecture guide](docs/phase6-remote-mcp.md).
 
 ## Architecture
 
@@ -216,8 +216,8 @@ tests/                   unit, contract, integration and security tests
 
 ## Known limitations
 
-Canvas access is read-only: there is no assignment submission, upload, comment, grade change or enrollment change. The HTTP adapter supports a personal Auth0 resource server. Render Free Web Service is the active Phase 6.2 hosting target; live deployment and ChatGPT linking remain pending. See [Render setup and actual status](docs/phase6-2-render-deployment.md) and [resource-server architecture and historical Railway evaluation](docs/phase6-2-remote-personal.md). Remote downloads, multi-user deployment, and public marketplace publication are unavailable. Secure local credential and file storage are Windows-first. The local plugin configuration is Narxoz-specific, and another same-user process can access its Windows generic credential.
+Canvas access is read-only: there is no assignment submission, upload, comment, grade change or enrollment change. The HTTP adapter supports a personal Auth0 resource server. Render Free Web Service is deployed and linked to ChatGPT Web; real Canvas smoke, profile, courses, upcoming and assignment context passed. After more than 16 idle minutes, a new container and fresh Canvas queries were verified following manual OAuth reconnect. This is a personal beta with sleep delays and expiring login, not an always-on service. See [Render setup and actual status](docs/phase6-2-render-deployment.md) and [resource-server architecture and historical Railway evaluation](docs/phase6-2-remote-personal.md). Remote downloads, multi-user deployment, and public marketplace publication are unavailable. Secure local credential and file storage are Windows-first. The local plugin configuration is Narxoz-specific, and another same-user process can access its Windows generic credential.
 
 ## Roadmap
 
-The future sequence is [Phase 6 personal plugin hardening and UX, Phase 7 safe Canvas write capabilities, and Phase 8 a public multi-user plugin](docs/roadmap.md). None is part of this `0.1.0` checkpoint.
+The [roadmap](docs/roadmap.md) reserves Phase 6.3 for remote files, Phase 6.4 for an optional mobile companion, Phase 7 for safe Canvas writes and Phase 8 for a public multi-user plugin. Those capabilities are unavailable; Phase 6.3 does not begin automatically.
