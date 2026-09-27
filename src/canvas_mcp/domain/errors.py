@@ -196,3 +196,23 @@ class RequestBudgetExceededError(BudgetExceededError):
 
 class ArtifactUnavailableError(ApplicationError):
     code = "artifact_unavailable"
+
+
+class UnsupportedFileFormatError(ApplicationError):
+    code = "unsupported_file_format"
+
+
+class FileContentUnavailableError(ApplicationError):
+    code = "file_content_unavailable"
+
+
+class FileContentTimeoutError(ApplicationError):
+    code = "file_content_timeout"
+
+
+class FileContentTooLargeError(ApplicationError):
+    code = "file_content_too_large"
+
+
+class FileParseError(ApplicationError):
+    code = "file_parse_error"

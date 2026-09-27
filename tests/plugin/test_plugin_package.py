@@ -78,6 +78,9 @@ def test_portable_launcher_initializes_in_a_clean_environment(tmp_path):
                     referenced.update(
                         re.findall(r"\bcanvas_[a-z_]+\b", skill.read_text(encoding="utf-8"))
                     )
-                assert referenced <= tool_names
+                # Skills describe the optional HTTP content route conditionally;
+                # this local launcher still exposes exactly the original tools.
+                assert referenced <= tool_names | {"canvas_get_file_content"}
+                assert "canvas_get_file_content" not in tool_names
 
     asyncio.run(run())

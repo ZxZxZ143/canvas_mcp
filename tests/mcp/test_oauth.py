@@ -189,6 +189,25 @@ def test_forged_unsigned_and_malformed_tokens(key):
     assert not opened
 
 
+def test_wrong_subject_file_content_never_composes_canvas_storage_or_parser(key, monkeypatch):
+    from canvas_mcp.infrastructure.files.ephemeral import EphemeralStore
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Wrong subject reached ephemeral file creation")
+
+    monkeypatch.setattr(EphemeralStore, "begin", forbidden)
+    connection, opened = client(key)
+    with connection:
+        response = rpc(
+            connection,
+            "tools/call",
+            {"name": "canvas_get_file_content", "arguments": {"course_id": 8, "file_id": 50}},
+            headers(token(key, sub="auth0|other")),
+        )
+        assert response.status_code == 403
+    assert not opened
+
+
 def test_auth0_oidc_userinfo_audience_is_allowed_only_with_our_resource(key):
     connection, opened = client(key)
     with connection:
@@ -225,7 +244,7 @@ def test_real_sdk_initialize_tools_profile_courses_upcoming_and_private_logs(key
             == 200
         )
         tools = rpc(connection, "tools/list", headers=h).json()["result"]["tools"]
-        assert len(tools) == 14
+        assert len(tools) == 15
         for tool in tools:
             assert tool["securitySchemes"] == [{"type": "oauth2", "scopes": ["canvas:read"]}]
             assert tool["_meta"]["securitySchemes"] == tool["securitySchemes"]

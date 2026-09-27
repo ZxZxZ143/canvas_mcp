@@ -4,6 +4,7 @@
 !.dockerignore
 !pyproject.toml
 !requirements-remote.lock
+!requirements-remote-check.lock
 !src/
 !src/**
 
@@ -23,3 +24,21 @@
 **/runtime
 **/artifacts
 **/*.log
+
+# Explicit synthetic build checks only. No other tests/fixtures or local data.
+!tests/
+tests/**
+!tests/conftest.py
+!tests/file_content_fixtures.py
+!tests/unit/
+!tests/unit/test_document_content.py
+!tests/security/
+!tests/security/test_ephemeral_storage.py
+!tests/integration/
+!tests/integration/test_remote_file_content.py
+
+# Common exclusions take precedence over directory exceptions.
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/.env*

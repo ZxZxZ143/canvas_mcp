@@ -11,6 +11,8 @@ from uuid import uuid4
 
 from canvas_mcp.application.connection import ConnectionService
 from canvas_mcp.application.files import FileService
+from canvas_mcp.application.file_content import FileContentService
+from canvas_mcp.domain.file_content import ContentSelection, FileContent
 from canvas_mcp.infrastructure.files.download import CanvasDownloadClient
 from canvas_mcp.infrastructure.files.manager import FileDownloadManager
 from canvas_mcp.infrastructure.files.storage import ManagedStore
@@ -59,6 +61,7 @@ class CanvasConnection:
     _settings: DeploymentSettings = field(repr=False)
     academic: AcademicService | None = field(default=None, repr=False)
     files: FileService | None = field(default=None, repr=False)
+    file_content: FileContentService | None = field(default=None, repr=False)
 
     def _files(self) -> FileService:
         if self.files is None:
@@ -106,6 +109,13 @@ class CanvasConnection:
 
     async def download_file(self, reference: FileReference) -> Result[DownloadedFile]:
         return await self._files().download_file(self._context(download=True), reference)
+
+    async def get_file_content(
+        self, reference: FileReference, selection: ContentSelection = ContentSelection()
+    ) -> Result[FileContent]:
+        if self.file_content is None:
+            raise UnsupportedCapabilityError()
+        return await self.file_content.get_file_content(self._context(), reference, selection)
 
     async def resolve_download(self, artifact_id: ArtifactId) -> Result[DownloadedFile]:
         return await self._files().resolve_download(self._context(), artifact_id)
@@ -270,6 +280,11 @@ async def open_scoped_connection(
         if local_downloads
         else None
     )
+    content = None
+    if not local_downloads:
+        from canvas_mcp.infrastructure.files.content_manager import RemoteFileContentManager
+
+        content = RemoteFileContentManager(provider, client, settings, logger)
     try:
         yield CanvasConnection(
             ConnectionService(provider, max_page_size=settings.max_page_size),
@@ -277,11 +292,14 @@ async def open_scoped_connection(
             settings,
             AcademicService(provider),
             FileService(provider, downloads if downloads is not None else _UnavailableDownloads()),
+            FileContentService(content) if content is not None else None,
         )
     finally:
         try:
             if downloads is not None:
                 await downloads.aclose()
+            if content is not None:
+                await content.aclose()
         finally:
             await provider.aclose()
 

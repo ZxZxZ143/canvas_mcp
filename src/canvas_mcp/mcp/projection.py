@@ -4,12 +4,15 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import datetime
+from dataclasses import replace
+import json
 from typing import Any, Literal, TypeVar, TypedDict, cast
 
 from pydantic_core import to_json
 from mcp.types import CallToolResult, TextContent
 
-from canvas_mcp.application.contracts import AssignmentContext, Result, Workload
+from canvas_mcp.application.contracts import AssignmentContext, Result, Workload, Warning
+from canvas_mcp.domain.file_content import FileContent, bounded_json
 from canvas_mcp.domain.errors import BudgetExceededError
 from canvas_mcp.domain.models import (
     Announcement,
@@ -369,6 +372,89 @@ def downloaded_file(value: DownloadedFile) -> dict[str, Any]:
         "sha256": value.sha256,
         "trust": "untrusted",
     }
+
+
+def file_content(value: FileContent) -> dict[str, Any]:
+    """Positive allowlist: never serialize the ephemeral artifact or parser internals."""
+    name = value.metadata.display_name
+    return {
+        "file": {
+            "file_id": _entity(value.metadata.id),
+            "display_name": _text(
+                replace(
+                    name, text=name.text[:256], truncated=name.truncated or len(name.text) > 256
+                )
+            ),
+            "content_type": value.metadata.content_type.value.text[:127]
+            if value.metadata.content_type.value
+            else "application/octet-stream",
+            "size": value.size,
+            "sha256": value.sha256,
+            "trust": "untrusted",
+        },
+        "content": {
+            "format": value.format,
+            "units": [
+                {"kind": unit.kind, "number": unit.number, "text": unit.text}
+                for unit in value.units
+            ],
+            "truncated": value.truncated,
+            "content_available": value.content_available,
+            "reason": value.reason,
+            "total_units": value.total_units,
+            "start_page": value.start_page,
+            "end_page": value.end_page,
+            "omissions": list(value.omissions),
+            "trust": "untrusted",
+        },
+    }
+
+
+def file_content_envelope(value: Result[FileContent]) -> McpResult:
+    """Fit actual duplicate MCP JSON including Unicode/escape/segment overhead."""
+    current = value
+    maximum = sum(len(unit.text) for unit in value.data.units)
+    while True:
+        try:
+            return envelope(current, file_content)
+        except BudgetExceededError:
+            if maximum == 0:
+                raise
+            maximum //= 2
+            remaining = maximum
+            units = []
+            for unit in value.data.units:
+                if remaining <= 0:
+                    break
+                if value.data.format == "json":
+                    if remaining < 2:
+                        break
+                    text, _ = bounded_json(json.loads(unit.text), remaining)
+                else:
+                    text = unit.text[:remaining]
+                units.append(replace(unit, text=text))
+                remaining -= len(text)
+            available = any(unit.text.strip() for unit in units)
+            content = replace(
+                value.data,
+                units=tuple(units),
+                truncated=True,
+                content_available=available,
+                reason=value.data.reason if available else "output_limit_no_extractable_text",
+                end_page=units[-1].number
+                if units and value.data.format in ("pdf", "pptx")
+                else None,
+            )
+            warning = Warning("file_content", "file_content_truncated")
+            unavailable = (
+                () if available else (Warning("file_content", "file_content_unavailable"),)
+            )
+            current = replace(
+                value,
+                data=content,
+                complete=False,
+                warnings=tuple(dict.fromkeys((*value.warnings, warning, *unavailable))),
+            )
 
 
 def for_transport(value: McpResult, transport: Literal["stdio", "http"]) -> McpResult:

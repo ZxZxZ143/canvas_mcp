@@ -11,6 +11,8 @@ Canvas Student is a personal, read-only Canvas LMS integration for Codex. A loca
 | Canvas access | Read-only |
 | Tested platform | Windows |
 | Live-tested installation | Narxoz University Canvas |
+| Remote file content | Phase 6.3 implemented; live verification pending |
+| Remote durable download | Not exposed |
 
 The stable plugin is a local, single-user installation. Phase 6.1 adds a Streamable HTTP adapter with default-deny authentication. Phase 6.2 has a personal Auth0-protected Render Free deployment connected to ChatGPT Web, with real Canvas queries and post-idle recovery verified. See [actual remote deployment status](docs/phase6-2-render-deployment.md) and the [HTTP architecture guide](docs/phase6-remote-mcp.md).
 
@@ -69,6 +71,14 @@ All 15 tools read Canvas. Only `canvas_download_file` creates a managed local fi
 | `canvas_download_file` | Secure download to managed storage | No | Yes |
 
 The [MCP guide](docs/local-mcp.md) describes inputs, result coverage, and approval behavior.
+
+HTTP exposes 15 tools: the same 14 reads plus `canvas_get_file_content`, replacing
+the local-only `canvas_download_file`. Remote content supports bounded PDF, DOCX,
+PPTX, TXT, MD, CSV and JSON text through temporary Linux storage and isolated
+readers. It returns untrusted content and coverage warnings with no server path.
+No OCR/images or durable remote download is exposed. The local plugin keeps its
+original 15 tools and download approval. See [Phase 6.3](docs/phase6-3-remote-files.md)
+for limits, security, test results and actual deployment evidence.
 
 ## Codex skills
 

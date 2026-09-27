@@ -5,6 +5,7 @@ import math
 import time
 from collections.abc import Iterable
 from enum import Enum
+from typing import TypeVar
 from urllib.parse import urlsplit
 
 import httpcore
@@ -37,6 +38,7 @@ from canvas_mcp.infrastructure.files.policy import (
 )
 from canvas_mcp.infrastructure.files.capability import DownloadCapability, parse_public_url
 from canvas_mcp.infrastructure.files.storage import ManagedStore, PendingFile
+from canvas_mcp.ports.download_sink import DownloadSink, DownloadTarget
 from canvas_mcp.infrastructure.files.mime_observation import MimeObservation
 from canvas_mcp.infrastructure.logging.events import (
     Event,
@@ -44,6 +46,8 @@ from canvas_mcp.infrastructure.logging.events import (
     SENSITIVE_HTTP,
     protect_http_logging,
 )
+
+P = TypeVar("P", bound=DownloadTarget)
 
 
 class DownloadBackend(httpcore.AsyncNetworkBackend):
@@ -178,8 +182,8 @@ class CanvasDownloadClient:
         ctx: RequestContext,
         metadata: FileMetadata,
         capability: DownloadCapability,
-        store: ManagedStore,
-        pending: PendingFile,
+        store: DownloadSink[P],
+        pending: P,
     ) -> tuple[str, int, Classification]:
         if type(capability) is not DownloadCapability:
             raise ConfigurationError()
@@ -211,8 +215,8 @@ class CanvasDownloadClient:
         self,
         ctx: RequestContext,
         metadata: FileMetadata,
-        store: ManagedStore,
-        pending: PendingFile | None,
+        store: DownloadSink[P],
+        pending: P | None,
         observation: MimeObservation | None = None,
         route_variant: DownloadRouteVariant = DownloadRouteVariant.CURRENT,
         capability: DownloadCapability | None = None,
@@ -241,8 +245,8 @@ class CanvasDownloadClient:
         self,
         ctx: RequestContext,
         metadata: FileMetadata,
-        store: ManagedStore,
-        pending: PendingFile | None,
+        store: DownloadSink[P],
+        pending: P | None,
         observation: MimeObservation | None = None,
         route_variant: DownloadRouteVariant = DownloadRouteVariant.CURRENT,
         capability: DownloadCapability | None = None,
