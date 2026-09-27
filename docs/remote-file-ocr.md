@@ -1,9 +1,9 @@
 # Remote file OCR and original downloads
 
-Release status: **INCOMPLETE**. Fresh ChatGPT OCR, original attachment/download and
-native-text regression have passed, but saved artifact-card conversations
-reproducibly fail to reload, including before Attach. The cause is unknown. See the
-evidence and release blocker in [phase6-4-ocr-and-downloads.md](phase6-4-ocr-and-downloads.md).
+Phase 6.4 status: **COMPLETE**. The user manually verified saved-chat replay and
+correct original preview/download, superseding the historical automated replay
+failure. See [phase6-4-ocr-and-downloads.md](phase6-4-ocr-and-downloads.md). Phase 6.4.1
+adds automatic native originals to successful analysis and has its own product checks.
 
 Phase 6.4 extends the Phase 6.3 public_url pipeline. The user-facing file tools and
 app-only byte transport accept only a Canvas FileReference (course/file/source IDs),

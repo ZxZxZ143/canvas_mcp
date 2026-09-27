@@ -25,6 +25,9 @@ from canvas_mcp.mcp.identity import (
 from canvas_mcp.infrastructure.config.oauth import OAuthSettings
 from canvas_mcp.domain.file_content import REMOTE_ARTIFACT_MAX_BYTES
 from canvas_mcp.domain.reflection import reflects_secrets
+from canvas_mcp.mcp.native_handoff import PATTERN, HandoffReceipt, handoff_receipts
+
+TRANSFER_TOOLS = frozenset(("canvas_get_file_content", "canvas_fetch_original_for_card"))
 
 
 def _validate_original(output: object, secrets: tuple[str, ...]) -> None:
@@ -53,6 +56,41 @@ def _validate_original(output: object, secrets: tuple[str, ...]) -> None:
     if len(original) != size or hashlib.sha256(original).hexdigest() != digest:
         raise ValueError()
     if reflects_secrets(original, secrets):
+        raise ValueError()
+
+
+def _validate_native_resource(
+    output: object, uri: str, receipts: list[HandoffReceipt], secrets: tuple[str, ...]
+) -> None:
+    reads = [receipt for receipt in receipts if receipt.operation == "read" and receipt.uri == uri]
+    if not reads:
+        # SDK errors are sanitized elsewhere; no resource bytes were produced.
+        if isinstance(output, dict) and "error" in output:
+            return
+        raise ValueError()
+    if len(reads) != 1 or not isinstance(output, dict):
+        raise ValueError()
+    original = reads[0].registry.peek(uri)
+    result = output.get("result")
+    contents = result.get("contents") if isinstance(result, dict) else None
+    if not isinstance(contents, list) or len(contents) != 1 or not isinstance(contents[0], dict):
+        raise ValueError()
+    item = contents[0]
+    encoded = item.get("blob")
+    if (
+        item.get("uri") != uri
+        or item.get("mimeType") != original.content_type
+        or "text" in item
+        or not isinstance(encoded, str)
+        or len(encoded) > ((REMOTE_ARTIFACT_MAX_BYTES + 2) // 3) * 4
+    ):
+        raise ValueError()
+    data = base64.b64decode(encoded, validate=True)
+    if (
+        len(data) != len(original.data)
+        or hashlib.sha256(data).hexdigest() != original.sha256
+        or reflects_secrets(data, secrets)
+    ):
         raise ValueError()
 
 
@@ -134,6 +172,9 @@ class HttpBoundary:
         self.tool_names, self.log_stream = tool_names, log_stream
         self.secrets = tuple(value for value in secrets if value)
         self._active = 0
+        # Serialize inspection + hidden-byte framing/validation/send together.
+        # The next OCR worker must not overlap a previous large buffered result.
+        self._transfer_gate = asyncio.Lock()
         self.oauth = oauth
         # One authorized principal; no attacker-controlled identity/IP dictionary.
         self._tokens = 30.0
@@ -185,6 +226,11 @@ class HttpBoundary:
             await response(scope, receive, send)
 
         principal_token = None
+        transfer_admitted = False
+        native_uri = None
+        receipts: list[HandoffReceipt] = []
+        receipt_token = handoff_receipts.set(receipts)
+        handoff_delivered = False
         failures: list[str] = []
         failure_token = current_failures.set(failures)
         authorization: list[bytes] = []
@@ -275,10 +321,18 @@ class HttpBoundary:
                                 "notifications/initialized",
                                 "tools/list",
                                 "tools/call",
+                                "resources/read",
                                 "ping",
                             ):
                                 operation = method
                             params = payload.get("params")
+                            if (
+                                operation == "resources/read"
+                                and isinstance(params, dict)
+                                and isinstance(params.get("uri"), str)
+                                and PATTERN.fullmatch(params["uri"])
+                            ):
+                                native_uri = params["uri"]
                             if (
                                 operation == "tools/call"
                                 and isinstance(params, dict)
@@ -294,6 +348,9 @@ class HttpBoundary:
                             await reject(429, "tool_rate_limited")
                             return
                         event("tool_call_started")
+                    if native_uri or (operation == "tools/call" and tool in TRANSFER_TOOLS):
+                        await self._transfer_gate.acquire()
+                        transfer_admitted = True
                     delivered = False
                     disconnected = asyncio.Event()
 
@@ -317,8 +374,11 @@ class HttpBoundary:
                         # exact wire cap. Keep the existing cap for every other call.
                         maximum = (
                             5_700_000
-                            if operation == "tools/call"
-                            and tool == "canvas_fetch_original_for_card"
+                            if native_uri
+                            or (
+                                operation == "tools/call"
+                                and tool == "canvas_fetch_original_for_card"
+                            )
                             else 262_144
                         )
                         if response_size > maximum:
@@ -346,6 +406,7 @@ class HttpBoundary:
                         await reject(status, "invalid_mcp_request")
                         return
                     # Protocol errors may otherwise include Pydantic input echoes.
+                    output: object = None
                     try:
                         output = json.loads(raw)
                         if isinstance(output, dict) and "error" in output:
@@ -366,12 +427,23 @@ class HttpBoundary:
                                 ]
                     except (ValueError, TypeError):
                         pass
+                    presented = (
+                        authorization[0].split(b" ", 1)[-1].decode("latin1")
+                        if authorization
+                        else ""
+                    )
+                    guarded_secrets = (*self.secrets, presented)
+                    # The issuance request and a later resource read can carry
+                    # different OAuth tokens. Inspect bytes against BOTH requests,
+                    # without retaining either token in the original registry.
+                    for receipt in receipts:
+                        if receipt.operation == "published" and reflects_secrets(
+                            receipt.registry.peek(receipt.uri).data, guarded_secrets
+                        ):
+                            raise ValueError()
+                    if native_uri:
+                        _validate_native_resource(output, native_uri, receipts, guarded_secrets)
                     if operation == "tools/call" and tool == "canvas_fetch_original_for_card":
-                        presented = (
-                            authorization[0].split(b" ", 1)[-1].decode("latin1")
-                            if self.oauth and authorization
-                            else ""
-                        )
                         _validate_original(json.loads(raw), (*self.secrets, presented))
                     for message in messages:
                         if message["type"] == "http.response.start":
@@ -381,6 +453,12 @@ class HttpBoundary:
                                 (b"x-request-id", request_id.encode()),
                             ]
                         await send(message)
+                    handoff_delivered = (
+                        isinstance(output, dict)
+                        and "error" not in output
+                        and isinstance(output.get("result"), dict)
+                        and not output["result"].get("isError", False)
+                    )
                     code = "ok"
                     if self.oauth and operation == "tools/call":
                         event("tool_call_completed")
@@ -403,6 +481,11 @@ class HttpBoundary:
             # Deliberately suppress exception strings, traceback and private input.
             await reject(500, "internal_error")
         finally:
+            for receipt in receipts:
+                receipt.registry.finish(receipt.uri, receipt.operation, handoff_delivered)
+            handoff_receipts.reset(receipt_token)
+            if transfer_admitted:
+                self._transfer_gate.release()
             if principal_token is not None:
                 current_principal.reset(principal_token)
             current_failures.reset(failure_token)

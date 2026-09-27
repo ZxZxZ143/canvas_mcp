@@ -1,5 +1,7 @@
 """Remote inspection use case, independent of storage and document parsers."""
 
+from dataclasses import replace
+
 from canvas_mcp.application.academic_results import result
 from canvas_mcp.application.contracts import Result, Warning
 from canvas_mcp.domain.file_content import ContentSelection, FileContent
@@ -33,4 +35,7 @@ class FileContentService:
             warnings += (Warning("file_content", "file_content_truncated"),)
         if not content.content_available:
             warnings += (Warning("file_content", "file_content_unavailable"),)
-        return result(content, ctx, "file_content", warnings)
+        # Original bytes have their own fixed transfer cap and never enter the
+        # academic text budget or dataclass stringification.
+        response = result(replace(content, original=None), ctx, "file_content", warnings)
+        return replace(response, data=content)

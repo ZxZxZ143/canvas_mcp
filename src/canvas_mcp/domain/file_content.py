@@ -1,11 +1,12 @@
 """Inert remote document results and fixed resource bounds; never artifact locators."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
 from typing import Literal
 
 from canvas_mcp.domain.errors import ValidationError
 from canvas_mcp.domain.models import FileMetadata
+from canvas_mcp.domain.remote_artifact import RemoteArtifact
 
 REMOTE_INSPECTION_MAX_BYTES = 8 * 1024 * 1024
 REMOTE_FILE_MAX_TEXT_CHARS = 16_000
@@ -129,3 +130,5 @@ class FileContent:
     page_count_processed: int = 0
     native_pages: tuple[int, ...] = ()
     limitations: tuple[str, ...] = ()
+    original: RemoteArtifact | None = field(default=None, repr=False, compare=False)
+    original_unavailable_reason: str | None = field(default=None, compare=False)

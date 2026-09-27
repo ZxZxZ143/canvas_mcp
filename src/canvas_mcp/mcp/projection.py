@@ -12,7 +12,7 @@ from pydantic_core import to_json
 from mcp.types import CallToolResult, TextContent
 
 from canvas_mcp.application.contracts import AssignmentContext, Result, Workload, Warning
-from canvas_mcp.domain.file_content import FileContent, bounded_json
+from canvas_mcp.domain.file_content import FileContent, bounded_json, REMOTE_ARTIFACT_MAX_BYTES
 from canvas_mcp.domain.errors import BudgetExceededError
 from canvas_mcp.domain.models import (
     Announcement,
@@ -91,7 +91,12 @@ def _page(value: Page[T], project: Callable[[T], Any]) -> dict[str, Any]:
     }
 
 
-def envelope(value: Result[T], project: Callable[[T], dict[str, Any]]) -> McpResult:
+def envelope(
+    value: Result[T],
+    project: Callable[[T], dict[str, Any]],
+    *,
+    maximum_wire_bytes: int = MAX_MCP_OUTPUT_BYTES,
+) -> McpResult:
     output: McpResult = {
         "data": project(value.data),
         "request_id": value.request_id,
@@ -114,7 +119,7 @@ def envelope(value: Result[T], project: Callable[[T], dict[str, Any]]) -> McpRes
         structuredContent=cast(dict[str, Any], output),
     )
     wire_bytes = len(wire_result.model_dump_json().encode("utf-8")) + 1_024
-    if wire_bytes > MAX_MCP_OUTPUT_BYTES:
+    if wire_bytes > min(MAX_MCP_OUTPUT_BYTES, maximum_wire_bytes):
         raise BudgetExceededError()
     return output
 
@@ -392,6 +397,17 @@ def file_content(value: FileContent) -> dict[str, Any]:
             "size": value.size,
             "sha256": value.sha256,
             "trust": "untrusted",
+            "original_download_available": value.original is not None,
+            "original_download_reason": None
+            if value.original is not None
+            else value.original_unavailable_reason
+            or (
+                "original_too_large_for_chat_transfer"
+                if value.size > REMOTE_ARTIFACT_MAX_BYTES
+                else "content_unavailable"
+                if not value.content_available
+                else "original_not_prepared"
+            ),
         },
         "content": {
             "format": value.format,
@@ -417,13 +433,15 @@ def file_content(value: FileContent) -> dict[str, Any]:
     }
 
 
-def file_content_envelope(value: Result[FileContent]) -> McpResult:
+def file_content_envelope(
+    value: Result[FileContent], *, maximum_wire_bytes: int = MAX_MCP_OUTPUT_BYTES
+) -> McpResult:
     """Fit actual duplicate MCP JSON including Unicode/escape/segment overhead."""
     current = value
     maximum = sum(len(unit.text) for unit in value.data.units)
     while True:
         try:
-            return envelope(current, file_content)
+            return envelope(current, file_content, maximum_wire_bytes=maximum_wire_bytes)
         except BudgetExceededError:
             if maximum == 0:
                 raise

@@ -102,6 +102,8 @@ def create_app(
             async with sdk_app.router.lifespan_context(sdk_app):
                 yield
         finally:
+            if server.original_handoffs is not None:
+                server.original_handoffs.close()
             if connections is not None:
                 await connections.aclose()
             if oauth_authenticator is not None:

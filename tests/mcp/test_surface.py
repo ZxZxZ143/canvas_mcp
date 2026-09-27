@@ -184,7 +184,10 @@ class FakeConnection:
 
 
 def invoke(server, name, args):
-    return asyncio.run(server._tool_manager.call_tool(name, args, convert_result=True))[1]
+    from mcp.types import CallToolResult
+
+    output = asyncio.run(server._tool_manager.call_tool(name, args, convert_result=True))
+    return output.structuredContent if isinstance(output, CallToolResult) else output[1]
 
 
 def test_tools_list_schema_annotations_and_descriptions():

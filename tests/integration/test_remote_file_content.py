@@ -125,6 +125,9 @@ def test_actual_authorized_download_extraction_and_no_locators(content_stack, tm
             assert b"GET /api/v1/files/10/public_url HTTP/1.1" in wire
             assert b"Authorization: Bearer " + TOKEN.encode() in wire
             assert len(pool.calls) == 1
+            assert content.data.original is not None
+            assert content.data.original.data == body
+            assert content.data.original.sha256 == hashlib.sha256(body).hexdigest()
             assert "Controlled PDF requirement" in output["data"]["content"]["units"][0]["text"]
             assert output["data"]["file"]["sha256"] == hashlib.sha256(body).hexdigest()
             for forbidden in (
@@ -139,6 +142,23 @@ def test_actual_authorized_download_extraction_and_no_locators(content_stack, tm
             # the infrastructure-private capability value/field never serializes.
             assert "public_url" not in json.dumps(output)
             assert not list(tmp_path.iterdir())
+
+    asyncio.run(run())
+
+
+def test_above_transfer_limit_still_reads_without_an_original(content_stack, tmp_path):
+    async def run():
+        body = b"A readable text document.\n" * 180_000
+        assert 4_194_304 < len(body) <= 8_388_608
+        async with content_stack(body, "txt") as (s, manager, service, pool):
+            content = await service.get_file_content(s.ctx, REFERENCE, ContentSelection())
+            assert content.data.content_available and content.data.original is None
+            output = dto.file_content_envelope(content)
+            assert output["data"]["file"]["original_download_available"] is False
+            assert output["data"]["file"]["original_download_reason"] == (
+                "original_too_large_for_chat_transfer"
+            )
+            assert len(pool.calls) == 1 and not list(tmp_path.iterdir())
 
     asyncio.run(run())
 

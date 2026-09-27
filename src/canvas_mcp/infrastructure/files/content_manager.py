@@ -170,8 +170,9 @@ class RemoteFileContentManager:
                         ctx, lambda: self._client.stream(ctx, metadata, capability, store, pending)
                     )
                     store.validate(pending, fmt)
+                    reader = store.reader(pending)
                     parsed = await parse_file(
-                        store.reader(pending),
+                        reader,
                         pending.count,
                         pending.digest.hexdigest(),
                         fmt,
@@ -187,6 +188,34 @@ class RemoteFileContentManager:
                         visible = unquote(unescape(unit["text"].replace("\\/", "/")))
                         if reflected in visible or query and query in visible:
                             raise FileParseError()
+                    original = None
+                    if parsed["content_available"] and pending.count <= REMOTE_ARTIFACT_MAX_BYTES:
+                        # The parser shared the descriptor offset. Read the SAME
+                        # validated original, never refetch or open a second reader.
+                        os.lseek(reader, 0, os.SEEK_SET)
+                        pieces = []
+                        count = 0
+                        while chunk := os.read(reader, 65_536):
+                            count += len(chunk)
+                            if count > REMOTE_ARTIFACT_MAX_BYTES:
+                                raise FileContentTooLargeError()
+                            pieces.append(chunk)
+                        data = b"".join(pieces)
+                        if (
+                            not data
+                            or count != pending.count
+                            or hashlib.sha256(data).hexdigest() != pending.digest.hexdigest()
+                            or reflects_capability(data, capability.target)
+                        ):
+                            raise FileParseError()
+                        self._provider._authorize(ctx)
+                        original = RemoteArtifact(
+                            metadata,
+                            f"canvas-file-{metadata.id}.{fmt}",
+                            MEDIA[fmt],
+                            pending.digest.hexdigest(),
+                            data,
+                        )
                     return FileContent(
                         metadata,
                         fmt,
@@ -205,6 +234,7 @@ class RemoteFileContentManager:
                         parsed["page_count_processed"],
                         tuple(parsed["native_pages"]),
                         tuple(parsed["limitations"]),
+                        original,
                     )
         except (TimeoutError, DownloadTimeoutError):
             raise FileContentTimeoutError() from None

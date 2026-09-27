@@ -1,11 +1,11 @@
 # Phase 6.4 — OCR and downloadable originals
 
-Status: **INCOMPLETE — saved artifact-card conversations fail to reload.**
-The reviewed implementation is deployed on Render Free. Real Canvas OCR, original
-attachment/download and native-text regression work in fresh ChatGPT sessions.
-However, normal saved-conversation recovery fails reproducibly, including before
-Attach. This release blocker is unresolved; its cause is not established. Source
-security approval and passing automated checks do not establish platform persistence.
+Status: **COMPLETE — user manually verified saved-conversation replay and download.**
+The user reopened saved conversations and confirmed that the correct original still
+previews and downloads. That newer manual product evidence supersedes the historical
+automated replay failure recorded below; it is not a current reproduced blocker.
+Phase 6.4.1 independently retests the native-file refinement and does not erase the
+historical observations or treat source checks as platform persistence evidence.
 
 Architecture, supported formats, resource caps, extraction metadata, security and
 user-facing behavior are documented in [remote-file-ocr.md](remote-file-ocr.md).
@@ -142,8 +142,9 @@ current/legacy preparation envelopes passed v4 checks. The installed SDK's annot
 CallToolResult contract was checked. No unresolved Critical/High source finding or
 definite protocol-contract flaw remains.
 
-Final disposition: implementation security approved; Phase 6.4 completion blocked by
-reproducible saved-card conversation failure with unknown cause. Do not equate source
-approval, fresh attachment success or an earlier saved-byte hash with persistence.
+Historical automated disposition: implementation security approved; saved-card
+recovery failed in that run with unknown cause. The user's subsequent successful
+manual replay/download supersedes that blocker. Do not equate source approval,
+fresh attachment success or an earlier saved-byte hash with new persistence evidence.
 
 No Canvas writes, permission expansion, paid service or Phase 7 is introduced.
