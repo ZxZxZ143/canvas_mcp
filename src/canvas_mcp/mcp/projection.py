@@ -10,6 +10,8 @@ import json
 from typing import Any, Literal, TypeVar, TypedDict, cast
 
 from pydantic_core import to_json
+from canvas_mcp.application.grade_changes import GradeChanges
+from canvas_mcp.domain.grade_state import GradeFact, GradeChange
 from mcp.types import CallToolResult, TextContent
 
 from canvas_mcp.application.contracts import (
@@ -63,6 +65,44 @@ class McpResult(TypedDict):
 
 def _date(value: datetime) -> str:
     return value.isoformat()
+
+
+def grade_fact(value: GradeFact) -> dict[str, Any]:
+    return {
+        "attempt": value.attempt,
+        "score": value.score,
+        "grade": value.grade,
+        "points_possible": value.points_possible,
+        "graded_at": None if value.graded_at is None else _date(value.graded_at),
+        "posted_at": None if value.posted_at is None else _date(value.posted_at),
+    }
+
+
+def grade_change(value: GradeChange) -> dict[str, Any]:
+    return {
+        "course_id": _entity(value.current.fact.course_id),
+        "assignment_id": _entity(value.current.fact.assignment_id),
+        "course_name": _text(value.current.course_name),
+        "assignment_name": _text(value.current.assignment_name),
+        "reason": value.reason,
+        "current": grade_fact(value.current.fact),
+        "previous": None if value.previous is None else grade_fact(value.previous),
+    }
+
+
+def grade_changes(value: GradeChanges) -> dict[str, Any]:
+    return {
+        "baseline_created": value.baseline_created,
+        "baselined_course_ids": [_entity(x) for x in value.baselined_courses],
+        "new_grades": [grade_change(x) for x in value.new_grades],
+        "changed_grades": [grade_change(x) for x in value.changed_grades],
+        "course_grade_changes": [],
+        "coverage": {
+            "requested": [_entity(x) for x in value.coverage.requested],
+            "scanned": [_entity(x) for x in value.coverage.scanned],
+            "failed": [_entity(x) for x in value.coverage.failed],
+        },
+    }
 
 
 def _text(value: ExternalText) -> dict[str, Any]:

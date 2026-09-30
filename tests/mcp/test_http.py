@@ -117,7 +117,12 @@ def test_initialization_health_and_list_do_not_open_canvas():
         assert all(
             tool["annotations"]["readOnlyHint"]
             for tool in listed
-            if tool["name"] not in {"canvas_download_file", "canvas_fetch_original_for_card"}
+            if tool["name"]
+            not in {
+                "canvas_download_file",
+                "canvas_fetch_original_for_card",
+                "canvas_get_grade_changes",
+            }
         )
         assert "access-control-allow-origin" not in health.headers
 
@@ -252,7 +257,7 @@ def test_real_remote_startup_does_not_query_canvas_or_import_windows_store(monke
     )
     with TestClient(app, base_url="http://127.0.0.1:8000") as connection:
         assert connection.get("/health").json() == {"status": "ok"}
-        assert len(rpc(connection, "tools/list").json()["result"]["tools"]) == 18
+        assert len(rpc(connection, "tools/list").json()["result"]["tools"]) == 19
 
 
 @pytest.mark.parametrize(

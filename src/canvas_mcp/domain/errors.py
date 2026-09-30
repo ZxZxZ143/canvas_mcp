@@ -216,3 +216,7 @@ class FileContentTooLargeError(ApplicationError):
 
 class FileParseError(ApplicationError):
     code = "file_parse_error"
+
+
+class StateStoreUnavailableError(ApplicationError):
+    code = "state_store_unavailable"

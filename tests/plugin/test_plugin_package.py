@@ -76,7 +76,7 @@ def test_portable_launcher_initializes_in_a_clean_environment(tmp_path):
                 initialized = await session.initialize()
                 assert initialized.serverInfo.name == "canvas_student"
                 tool_names = {tool.name for tool in (await session.list_tools()).tools}
-                assert len(tool_names) == 16
+                assert len(tool_names) == 17
                 referenced = set()
                 for skill in (PLUGIN / "skills").glob("*/SKILL.md"):
                     referenced.update(

@@ -29,6 +29,30 @@ from canvas_mcp.infrastructure.config.schema import DeploymentSettings
 from canvas_mcp.infrastructure.logging.events import EventLogger
 
 TOKEN = "SUPER_SECRET_CANVAS_TOKEN_12345"
+
+
+@pytest.fixture(params=["sqlite", "postgresql"])
+def state_repo(request, tmp_path):
+    import asyncio
+    import os
+    from canvas_mcp.infrastructure.state.settings import StateSettings
+    from canvas_mcp.infrastructure.state.sql import SQLiteStateRepository, PostgreSQLStateRepository
+
+    if request.param == "sqlite":
+        settings = StateSettings(
+            f"sqlite:///{tmp_path / 'state.db'}", "sqlite", tmp_path / "state.db"
+        )
+        repo = SQLiteStateRepository(settings)
+    else:
+        url = os.environ.get("CANVAS_STATE_TEST_URL")
+        if not url:
+            pytest.skip("CANVAS_STATE_TEST_URL required for real PostgreSQL contract tests")
+        settings = StateSettings.load({"STATE_DATABASE_URL": url})
+        repo = PostgreSQLStateRepository(settings)
+    asyncio.run(repo.migrate())
+    return repo
+
+
 ORIGIN = "https://canvas.example.edu"
 PROFILE = {"id": 7, "name": "Student Name", "time_zone": "UTC", "login_id": "private@example.edu"}
 COURSE = {"id": 8, "name": "Algorithms", "course_code": "CS101", "term": {"name": "Fall"}}

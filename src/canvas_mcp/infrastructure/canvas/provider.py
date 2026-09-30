@@ -50,6 +50,8 @@ from canvas_mcp.domain.validation import (
 from canvas_mcp.infrastructure.canvas import mapping
 from canvas_mcp.infrastructure.canvas import academic_mapping as academic
 from canvas_mcp.infrastructure.canvas.file_mapping import file_metadata
+from canvas_mcp.domain.grade_state import NamedGrade
+from canvas_mcp.infrastructure.canvas.grade_mapping import grade as grade_fact
 from canvas_mcp.infrastructure.files.capability import (
     DownloadCapability,
     parse_public_url,
@@ -271,6 +273,21 @@ class CanvasProvider:
                 detail=workload_context,
                 rubric_absence_known=False,
             ),
+            "assignments.list",
+        )
+
+    async def list_grade_facts(
+        self, ctx: RequestContext, course_id: EntityId, page: PageRequest
+    ) -> Page[NamedGrade]:
+        course = await self.get_course(ctx, course_id)
+        return await self._page(
+            ctx,
+            page,
+            self._binding("grade_facts", course_id),
+            lambda target: self._client.get_assignments_page(
+                ctx, course_id, page.limit, AssignmentFilter(), target
+            ),
+            lambda raw: grade_fact(raw, course, self._subject_id()),
             "assignments.list",
         )
 

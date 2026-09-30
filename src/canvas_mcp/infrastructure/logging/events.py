@@ -8,6 +8,7 @@ from typing import TextIO
 from uuid import UUID
 
 SENSITIVE_HTTP = ContextVar("canvas_sensitive_http", default=False)
+SENSITIVE_STATE = ContextVar("canvas_sensitive_state", default=False)
 
 OPERATIONS = frozenset(
     (
@@ -81,6 +82,17 @@ class _NoHttpTrace(logging.Filter):
         return not SENSITIVE_HTTP.get()
 
 
+class _NoStateTrace(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        return not SENSITIVE_STATE.get()
+
+
+def protect_state_logging() -> None:
+    logger = logging.getLogger("psycopg")
+    if not any(isinstance(item, _NoStateTrace) for item in logger.filters):
+        logger.addFilter(_NoStateTrace())
+
+
 def protect_http_logging() -> None:
     # HTTPCore 1.0's DEBUG tracing includes response headers and exception objects.
     for name in (
@@ -108,6 +120,25 @@ class EventLogger:
         self._logger.log(
             max(self._logger.level, logging.INFO),
             json.dumps({"event": Event.PRIVATE_ORIGIN.value}),
+        )
+
+    def state_check(self, event: str, scanned: int, failed: int, new: int, changed: int) -> None:
+        if event not in ("state_sync_failed", "baseline_created", "grade_diff_completed"):
+            return
+        counts = (scanned, failed, new, changed)
+        if any(type(x) is not int or not 0 <= x <= 5000 for x in counts):
+            return
+        self._logger.log(
+            logging.WARNING if event == "state_sync_failed" else logging.INFO,
+            json.dumps(
+                {
+                    "event": event,
+                    "scanned_count": scanned,
+                    "failed_count": failed,
+                    "new_count": new,
+                    "changed_count": changed,
+                }
+            ),
         )
 
     def emit(

@@ -43,6 +43,16 @@ SourceKind = Literal["course_file", "assignment_attachment", "module_file", "sub
 StrictBool = Annotated[bool, Field(strict=True)]
 
 INSTRUCTIONS = (
+    "When asked what grades are new or changed (Что нового по оценкам? Мне что-то проверили?), "
+    "call canvas_get_grade_changes for a fresh persistent comparison. Report only new/changed grades, "
+    "never compare conversation memory or repeat unchanged historical grades. "
+    "baseline_created=true means historical grades were recorded, not newly awarded: say "
+    "«Базовая точка создана. С этого момента я смогу показывать только новые или изменившиеся оценки.» "
+    "Mention baselined_course_ids for newly included courses; their historical grades are not new. "
+    "If complete=true and there are no changes, say «Новых или изменённых оценок с прошлой проверки нет.» "
+    "Qualify partial coverage; state_store_unavailable does not mean no changes. "
+    "response_limit_reached means only part of the changes were reported; another check can show the rest. "
+    "Requests to show current grades use current grade reads and never advance the change baseline. "
     "For study priorities or planning, use canvas_get_workload with the user's timezone before recommending order. "
     "Separate Canvas facts from estimated effort; use broad ranges with evidence, never exact completion times. "
     "Account for overdue/near-due unfinished work, task size, prerequisites and user time budgets; "
@@ -135,6 +145,7 @@ _MESSAGES = {
     "download_timeout": "The file download timed out. Try again later.",
     "download_permission_unavailable": "Canvas did not grant permission to download this file.",
     "storage_error": "The managed local storage is unavailable.",
+    "state_store_unavailable": "Persistent grade state is unavailable. No grade changes were confirmed.",
     "malformed_upstream": "Canvas returned data that could not be used.",
     "unsupported_capability": "This Canvas capability is unavailable for the connected account.",
     "artifact_unavailable": "The local artifact is unavailable or expired.",
@@ -314,6 +325,32 @@ def create_server(
         yield connection
 
     factory = connection_factory or fixed_connection
+
+    @server.tool(
+        description="Freshly compare the connected student's visible assignment grades against the persistent change baseline. First use establishes a baseline; later checks return only new or changed grades. Reads Canvas and advances application state after successful reporting preparation.",
+        annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, openWorldHint=False),
+    )
+    async def canvas_get_grade_changes() -> dto.McpResult:
+        async def scoped() -> dto.McpResult:
+            async with factory() as service:
+                prepared: dto.McpResult | None = None
+
+                def validate(result: Any) -> None:
+                    nonlocal prepared
+                    prepared = dto.for_transport(
+                        dto.envelope(
+                            result,
+                            dto.grade_changes,
+                            maximum_wire_bytes=service._settings.max_tool_response_bytes,
+                        ),
+                        transport,
+                    )
+
+                await service.get_grade_changes(validate)
+                assert prepared is not None
+                return prepared
+
+        return await _invoke(scoped, lambda output: output)
 
     async def invoke(
         operation: Callable[[composition.CanvasConnection], Awaitable[T]],

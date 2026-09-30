@@ -17,6 +17,8 @@ from canvas_mcp.application.contracts import (
     Workload,
 )
 from canvas_mcp.application.files import FileService
+from canvas_mcp.application.grade_changes import GradeChanges
+from types import SimpleNamespace
 from canvas_mcp.domain.errors import (
     AuthorizationError,
     DownloadTimeoutError,
@@ -123,6 +125,9 @@ WORKLOAD = Workload(
 )
 
 OUTPUTS = {
+    "get_grade_changes": result(
+        GradeChanges(True, ("8",), (), (), CourseCoverage(("8",), ("8",), (), True))
+    ),
     "get_profile": result(PROFILE),
     "list_courses": result(Page((COURSE,), None, True)),
     "list_assignments": result(Page((ASSIGNMENT,), None, True)),
@@ -158,6 +163,7 @@ OUTPUTS = {
 }
 
 ARGS = {
+    "canvas_get_grade_changes": {},
     "canvas_get_profile": {},
     "canvas_list_courses": {},
     "canvas_list_assignments": {"course_id": 8},
@@ -188,6 +194,14 @@ class FakeConnection:
     def __init__(self, error=None):
         self.error = error
         self.calls = []
+        self._settings = SimpleNamespace(max_tool_response_bytes=131072)
+
+    async def get_grade_changes(self, validate):
+        self.calls.append(("get_grade_changes", (), {}))
+        if self.error:
+            raise self.error()
+        validate(OUTPUTS["get_grade_changes"])
+        return OUTPUTS["get_grade_changes"]
 
     def __getattr__(self, name):
         async def call(*args, **kwargs):
@@ -223,7 +237,9 @@ def test_tools_list_schema_annotations_and_descriptions():
         }
         assert tool.annotations.destructiveHint is False
         assert tool.annotations.openWorldHint is False
-        assert tool.annotations.readOnlyHint is (tool.name != "canvas_download_file")
+        assert tool.annotations.readOnlyHint is (
+            tool.name not in ("canvas_download_file", "canvas_get_grade_changes")
+        )
     assert "full context" in next(
         tool.description for tool in tools if tool.name == "canvas_get_assignment_context"
     )

@@ -7,6 +7,10 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import TextIO, Literal
+from collections.abc import Callable
+from canvas_mcp.application.grade_changes import GradeChangeService, GradeChanges
+from canvas_mcp.infrastructure.state.factory import repository as state_repository
+from canvas_mcp.ports.state import StateRepository
 from uuid import uuid4
 
 from canvas_mcp.application.connection import ConnectionService
@@ -63,6 +67,17 @@ class CanvasConnection:
     academic: AcademicService | None = field(default=None, repr=False)
     files: FileService | None = field(default=None, repr=False)
     file_content: FileContentService | None = field(default=None, repr=False)
+    grade_changes: GradeChangeService | None = field(default=None, repr=False)
+
+    async def get_grade_changes(
+        self,
+        validate: Callable[[Result[GradeChanges]], None] | None = None,
+    ) -> Result[GradeChanges]:
+        if self.grade_changes is None:
+            from canvas_mcp.domain.errors import StateStoreUnavailableError
+
+            raise StateStoreUnavailableError()
+        return await self.grade_changes.check(self._context(), validate)
 
     def _files(self) -> FileService:
         if self.files is None:
@@ -260,7 +275,12 @@ async def open_canvas_connection(
     else:
         raise ConfigurationError()
     async with open_scoped_connection(
-        settings, scope, credentials, log_stream=log_stream
+        settings,
+        scope,
+        credentials,
+        log_stream=log_stream,
+        state=state_repository(env),
+        local_state=True,
     ) as connection:
         yield connection
 
@@ -273,6 +293,8 @@ async def open_scoped_connection(
     *,
     log_stream: TextIO | None = None,
     local_downloads: bool = True,
+    state: StateRepository | None = None,
+    local_state: bool = False,
 ) -> AsyncIterator[CanvasConnection]:
     """Compose the existing services with an explicit scope and credential port; no I/O."""
     logger = EventLogger(settings.log_level, log_stream)
@@ -304,6 +326,11 @@ async def open_scoped_connection(
             AcademicService(provider),
             FileService(provider, downloads if downloads is not None else _UnavailableDownloads()),
             FileContentService(content) if content is not None else None,
+            GradeChangeService(
+                provider, state, settings.canvas_origin, local=local_state, audit=logger.state_check
+            )
+            if state is not None
+            else None,
         )
     finally:
         try:

@@ -33,7 +33,11 @@ COURSE_FAILURES = (UpstreamUnavailableError, NotFoundError)
 
 
 async def discover_courses(
-    provider: LmsAcademicQueries, ctx: RequestContext, ids: tuple[EntityId, ...]
+    provider: LmsAcademicQueries,
+    ctx: RequestContext,
+    ids: tuple[EntityId, ...],
+    *,
+    active_only: bool = True,
 ) -> tuple[Course, ...]:
     ids = course_ids(ids)
     if ids:
@@ -41,7 +45,7 @@ async def discover_courses(
     found: dict[EntityId, Course] = {}
     page = PageRequest(100)
     while True:
-        batch = await provider.list_courses(ctx, page, True)
+        batch = await provider.list_courses(ctx, page, active_only)
         found.update((item.id, item) for item in batch.items)
         if len(found) > 50:
             raise BudgetExceededError()

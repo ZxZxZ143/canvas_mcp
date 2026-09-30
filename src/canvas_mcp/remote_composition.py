@@ -13,6 +13,8 @@ from canvas_mcp.infrastructure.config.environment import EnvironmentCredentialSo
 from canvas_mcp.infrastructure.config.schema import DeploymentSettings
 from canvas_mcp.mcp.identity import current_principal
 from canvas_mcp.ports.credentials import CanvasCredentialProvider, CredentialSource
+from canvas_mcp.ports.state import StateRepository
+from canvas_mcp.infrastructure.state.factory import repository as state_repository
 
 
 @dataclass(frozen=True, repr=False)
@@ -54,9 +56,11 @@ class ScopedConnections:
         credentials: CanvasCredentialProvider,
         scope: AccessScope,
         log_stream: TextIO | None = None,
+        state: StateRepository | None = None,
     ) -> None:
         self.settings, self.credentials, self.scope = settings, credentials, scope
         self.log_stream = log_stream
+        self.state = state
         self._stack = AsyncExitStack()
         self._lock = asyncio.Lock()
         self._connection: CanvasConnection | None = None
@@ -75,6 +79,7 @@ class ScopedConnections:
                         self.credentials.for_scope(principal.scope),
                         log_stream=self.log_stream,
                         local_downloads=False,
+                        state=self.state,
                     )
                 )
             connection = self._connection
@@ -96,7 +101,11 @@ def development_connections(
         raise ConfigurationError()
     source = EnvironmentCredentialSource.from_environment(scope, environ)
     return ScopedConnections(
-        settings, DevelopmentCredentialProvider(scope, source), scope, log_stream
+        settings,
+        DevelopmentCredentialProvider(scope, source),
+        scope,
+        log_stream,
+        state=state_repository(environ, remote=True),
     )
 
 
@@ -113,4 +122,10 @@ def personal_connections(
         raise ConfigurationError()
     settings = load_settings(environ)
     source = EnvironmentCredentialSource.from_environment(scope, environ)
-    return ScopedConnections(settings, RemoteSecretProvider(scope, source), scope, log_stream)
+    return ScopedConnections(
+        settings,
+        RemoteSecretProvider(scope, source),
+        scope,
+        log_stream,
+        state=state_repository(environ, remote=True),
+    )

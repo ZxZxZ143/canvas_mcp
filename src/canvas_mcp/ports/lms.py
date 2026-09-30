@@ -7,6 +7,7 @@ Unsupported capabilities raise UnsupportedCapabilityError, not empty success.
 
 from datetime import datetime
 from typing import Protocol, Literal
+from canvas_mcp.domain.grade_state import NamedGrade
 
 from canvas_mcp.domain.models import (
     Announcement,
@@ -47,6 +48,10 @@ class LmsConnectionQueries(Protocol):
 
 
 class LmsAcademicQueries(LmsConnectionQueries, Protocol):
+    async def list_grade_facts(
+        self, ctx: RequestContext, course_id: EntityId, page: PageRequest
+    ) -> Page[NamedGrade]: ...
+
     async def get_course(self, ctx: RequestContext, course_id: EntityId) -> Course: ...
 
     async def list_assignments(

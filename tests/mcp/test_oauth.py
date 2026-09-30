@@ -334,7 +334,7 @@ def test_new_resource_server_accepts_refreshed_access_without_original_exchange(
         resource = new_server.get("/.well-known/oauth-protected-resource").json()
         assert resource["scopes_supported"] == ["canvas:read"]
         listed = rpc(new_server, "tools/list", headers=headers(renewed)).json()["result"]["tools"]
-        assert len(listed) == 18
+        assert len(listed) == 19
         assert all(
             t["securitySchemes"] == [{"type": "oauth2", "scopes": ["canvas:read"]}] for t in listed
         )
@@ -425,7 +425,7 @@ def test_real_sdk_initialize_tools_profile_courses_upcoming_and_private_logs(key
             == 200
         )
         tools = rpc(connection, "tools/list", headers=h).json()["result"]["tools"]
-        assert len(tools) == 18
+        assert len(tools) == 19
         for tool in tools:
             assert tool["securitySchemes"] == [{"type": "oauth2", "scopes": ["canvas:read"]}]
             assert tool["_meta"]["securitySchemes"] == tool["securitySchemes"]

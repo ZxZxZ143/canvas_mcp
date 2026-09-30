@@ -13,8 +13,14 @@ Canvas Student is a personal, read-only Canvas LMS integration for Codex. A loca
 | Live-tested installation | Narxoz University Canvas |
 | Remote file content | Supported: bounded PDF, DOCX, PPTX, TXT, MD, CSV and JSON text |
 | Remote durable download | Not exposed |
+| Persistent grade changes | Phase 7.2 implemented locally; durable production PostgreSQL and live acceptance pending |
 
 The stable plugin is a local, single-user installation. Phase 6.1 adds a Streamable HTTP adapter with default-deny authentication. Phase 6.2 has a personal Auth0-protected Render Free deployment connected to ChatGPT Web, with real Canvas queries and post-idle recovery verified. See [actual remote deployment status](docs/phase6-2-render-deployment.md) and the [HTTP architecture guide](docs/phase6-remote-mcp.md).
+
+Phase 7.2 adds a dedicated persistent grade-change baseline, SQLite/PostgreSQL
+repositories and `canvas_get_grade_changes`. See the [state architecture, privacy,
+operator setup and acceptance status](docs/phase7-2-persistent-canvas-state.md).
+The current Render service has not been upgraded to this revision.
 
 ## Architecture
 
