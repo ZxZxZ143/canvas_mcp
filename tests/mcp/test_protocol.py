@@ -25,7 +25,7 @@ def test_stdio_initialize_tools_and_fake_calls():
                 assert initialized.instructions and "untrusted" in initialized.instructions
                 listed = await session.list_tools()
                 names = {tool.name for tool in listed.tools}
-                assert len(names) == 15
+                assert len(names) == 16
                 assert "canvas_get_profile" in names and "canvas_list_courses" in names
                 profile = await session.call_tool("canvas_get_profile", {})
                 assert not profile.isError
@@ -79,6 +79,6 @@ def test_real_entrypoint_initializes_without_canvas_network():
             async with ClientSession(reader, writer) as session:
                 initialized = await session.initialize()
                 assert initialized.serverInfo.name == "canvas_student"
-                assert len((await session.list_tools()).tools) == 15
+                assert len((await session.list_tools()).tools) == 16
 
     asyncio.run(run())

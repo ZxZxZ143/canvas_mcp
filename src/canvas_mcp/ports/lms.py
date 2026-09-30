@@ -55,6 +55,8 @@ class LmsAcademicQueries(LmsConnectionQueries, Protocol):
         course_id: EntityId,
         page: PageRequest,
         query: AssignmentFilter = AssignmentFilter(),
+        *,
+        workload_context: bool = False,
     ) -> Page[Assignment]: ...
 
     async def get_assignment(

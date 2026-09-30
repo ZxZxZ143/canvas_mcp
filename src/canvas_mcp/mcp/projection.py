@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from dataclasses import replace
 import json
 from typing import Any, Literal, TypeVar, TypedDict, cast
@@ -11,7 +12,13 @@ from typing import Any, Literal, TypeVar, TypedDict, cast
 from pydantic_core import to_json
 from mcp.types import CallToolResult, TextContent
 
-from canvas_mcp.application.contracts import AssignmentContext, Result, Workload, Warning
+from canvas_mcp.application.contracts import (
+    AssignmentContext,
+    Result,
+    Workload,
+    Warning,
+    StudyPlanContext,
+)
 from canvas_mcp.domain.file_content import FileContent, bounded_json, REMOTE_ARTIFACT_MAX_BYTES
 from canvas_mcp.domain.errors import BudgetExceededError
 from canvas_mcp.domain.models import (
@@ -112,6 +119,8 @@ def envelope(
         "observed_at": _date(value.observed_at),
     }
     _fit_assignment_output(output, min(MAX_MCP_OUTPUT_BYTES, maximum_wire_bytes))
+    if "planning_window" in output["data"]:
+        _fit_planner_output(output, min(MAX_MCP_OUTPUT_BYTES, maximum_wire_bytes))
     # FastMCP emits both a pretty JSON TextContent block and structuredContent.
     # Serialize their exact MCP result shape, allowing for JSON-RPC framing.
     pretty = to_json(output, indent=2).decode("utf-8")
@@ -123,6 +132,98 @@ def envelope(
     if wire_bytes > min(MAX_MCP_OUTPUT_BYTES, maximum_wire_bytes):
         raise BudgetExceededError()
     return output
+
+
+def _fit_planner_output(output: McpResult, maximum: int) -> None:
+    """Keep nearest-deadline evidence and disclose omissions in the exact wire budget."""
+    items = output["data"]["items"]
+    while items:
+        wire = CallToolResult(
+            content=[TextContent(type="text", text=to_json(output, indent=2).decode("utf-8"))],
+            structuredContent=cast(dict[str, Any], output),
+        )
+        if len(wire.model_dump_json().encode("utf-8")) + 1024 <= maximum:
+            return
+        items.pop()
+        output["complete"] = False
+        warning: WarningDTO = {
+            "component": "workload",
+            "code": "response_limit_reached",
+            "course_id": None,
+        }
+        if warning not in output["warnings"]:
+            output["warnings"].append(warning)
+
+
+def study_plan_context(value: StudyPlanContext) -> dict[str, Any]:
+    zone = ZoneInfo(value.timezone)
+    output = workload(value.workload)
+    items: list[dict[str, Any]] = []
+    for item in value.workload.items.items:
+        facts = item.features
+        assert facts is not None
+        due = item.assignment.due_at.value
+        own = item.submission.value
+        items.append(
+            {
+                "course_id": _entity(item.course.id),
+                "course_name": _text(item.course.name),
+                "assignment_id": _entity(item.assignment.id),
+                "assignment_name": _text(item.assignment.title),
+                "due_at": _observed(item.assignment.due_at, _date),
+                "due_at_local": None if due is None else due.astimezone(zone).isoformat(),
+                "days_until_due": None
+                if due is None
+                else (due.astimezone(zone).date() - value.start_at.astimezone(zone).date()).days,
+                "hours_until_due": None
+                if due is None
+                else round((due - value.start_at).total_seconds() / 3600, 1),
+                "overdue": None if item.due_state == "unknown" else item.due_state == "overdue",
+                "due_state": item.due_state,
+                "submitted": None
+                if own is None or own.state.value == "unknown"
+                else own.state.value == "submitted",
+                "graded": None if own is None else own.graded,
+                "missing": None if own is None else own.missing,
+                "late": None if own is None else own.late,
+                "required": own.required
+                if own and own.required is not None
+                else item.assignment.required,
+                "submission_types": [_text(x) for x in item.assignment.submission_types],
+                "points_possible": _observed(item.assignment.points, _identity),
+                "availability": facts.availability,
+                "can_submit": item.assignment.can_submit,
+                "unlock_at": _observed(item.assignment.unlock_at, _date),
+                "lock_at": _observed(item.assignment.lock_at, _date),
+                "description_available": facts.description_available,
+                "description_excerpt": _observed(facts.description_excerpt, _text),
+                "assignment_text_length_band": facts.description_length_band,
+                "rubric_available": facts.rubric_available,
+                "rubric_criteria_count": facts.rubric_criteria_count,
+                "direct_attachment_count": facts.direct_attachment_count,
+                "linked_file_count": facts.linked_file_count,
+                "task_type_signals": list(facts.task_type_signals),
+                "module_context": {"state": "not_requested", "value": None},
+                "related_material_count": None,
+                "effort": {
+                    "state": "not_estimated",
+                    "reason": "ChatGPT estimates only from adequate evidence or user input.",
+                },
+                "warning_flags": list(facts.warning_flags),
+            }
+        )
+    return {
+        "items": items,
+        "coverage": output["coverage"],
+        "planning_window": {
+            "start_at": _date(value.start_at),
+            "end_at_exclusive": _date(value.end_at),
+            "timezone": value.timezone,
+            "days": value.days,
+        },
+        "limits": {"upcoming": 40, "overdue": 30, "undated_or_unknown": 10, "maximum_days": 30},
+        "ordering": "distance_to_deadline_not_recommended_priority",
+    }
 
 
 def _fit_assignment_output(output: McpResult, maximum: int) -> None:

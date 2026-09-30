@@ -269,7 +269,13 @@ def submission(
 
 
 def assignment(
-    value: object, course_id: EntityId, subject: EntityId, origin: str, *, detail: bool = True
+    value: object,
+    course_id: EntityId,
+    subject: EntityId,
+    origin: str,
+    *,
+    detail: bool = True,
+    rubric_absence_known: bool = True,
 ) -> Assignment:
     raw = _object(value)
     identity = entity_id(raw.get("id"))
@@ -318,7 +324,7 @@ def assignment(
         if detail
         else Observed[tuple[RubricCriterion, ...]](Availability.NOT_REQUESTED, None)
     )
-    if detail and "rubric" not in raw:
+    if detail and rubric_absence_known and "rubric" not in raw:
         rub = Observed(
             Availability.AVAILABLE, None
         )  # Canvas omits rubric for non-rubric assignments.

@@ -1,13 +1,22 @@
 """Academic use cases depend only on normalized LMS ports, not Canvas HTTP."""
 
 from datetime import datetime
+from dataclasses import replace
 from typing import Literal
 
 from canvas_mcp.application.academic_results import result
-from canvas_mcp.application.contracts import AssignmentContext, Result, Warning, Workload
+from canvas_mcp.application.contracts import (
+    AssignmentContext,
+    Result,
+    Warning,
+    Workload,
+    StudyPlanContext,
+)
+from canvas_mcp.application.planner import planning_window
 from canvas_mcp.application.workload import discover_courses, scan
 from canvas_mcp.domain.errors import (
     NotFoundError,
+    BudgetExceededError,
     RateLimitError,
     UnsupportedCapabilityError,
     UpstreamUnavailableError,
@@ -192,6 +201,38 @@ class AcademicService:
             courses=courses,
         )
         return result(data, ctx, "workload", warnings, complete=data.items.complete)
+
+    async def get_workload(
+        self, ctx: RequestContext, *, days: int = 7, timezone: str | None = None
+    ) -> Result[StudyPlanContext]:
+        zone, start, end = planning_window(ctx.as_of, days, timezone)
+        data, warnings = await scan(
+            self._provider,
+            ctx,
+            start_at=start,
+            end_at=end,
+            planning=True,
+        )
+        if timezone is None:
+            warnings = (*warnings, Warning("timezone", "timezone_defaulted_to_utc"))
+        while True:
+            try:
+                return result(
+                    StudyPlanContext(data, zone, start, end, days),
+                    ctx,
+                    "workload",
+                    warnings,
+                    complete=data.items.complete,
+                )
+            except BudgetExceededError:
+                if not data.items.items:
+                    raise
+                warnings = tuple(
+                    dict.fromkeys((*warnings, Warning("workload", "response_limit_reached")))
+                )
+                data = replace(
+                    data, items=replace(data.items, items=data.items.items[:-1], complete=False)
+                )
 
     async def list_calendar_events(
         self,

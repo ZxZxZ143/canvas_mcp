@@ -50,7 +50,7 @@ The capability URL is not returned by MCP. The downloaded artifact remains `trus
 
 ## MCP tools
 
-All 15 local stdio tools read Canvas. Only `canvas_download_file` creates a managed local file, and the personal Codex configuration prompts for approval before that call.
+All 16 local stdio tools read Canvas. Only `canvas_download_file` creates a managed local file, and the personal Codex configuration prompts for approval before that call.
 
 | Tool | Purpose | Canvas mutation? | Local side effect? |
 | --- | --- | --- | --- |
@@ -61,6 +61,7 @@ All 15 local stdio tools read Canvas. Only `canvas_download_file` creates a mana
 | `canvas_get_assignment_context` | Course, assignment, submission, rubric and related materials | No | No |
 | `canvas_get_upcoming` | Upcoming cross-course workload | No | No |
 | `canvas_get_overdue` | Overdue cross-course workload | No | No |
+| `canvas_get_workload` | Bounded planning facts and metadata features in local calendar days | No | No |
 | `canvas_list_modules` | Course modules | No | No |
 | `canvas_list_module_items` | Module entries and file references | No | No |
 | `canvas_list_announcements` | Course announcements | No | No |
@@ -72,13 +73,11 @@ All 15 local stdio tools read Canvas. Only `canvas_download_file` creates a mana
 
 The [MCP guide](docs/local-mcp.md) describes inputs, result coverage, and approval behavior.
 
-HTTP exposes 15 tools: the same 14 reads plus `canvas_get_file_content`, replacing
-the local-only `canvas_download_file`. Remote content supports bounded PDF, DOCX,
-PPTX, TXT, MD, CSV and JSON text through temporary Linux storage and isolated
-readers. It returns untrusted content and coverage warnings with no server path.
-No OCR/images or durable remote download is exposed. The local plugin keeps its
-original 15 tools and download approval. See [Phase 6.3](docs/phase6-3-remote-files.md)
-for limits, security, test results and actual deployment evidence.
+HTTP exposes 18 tools, including bounded file content, original-file handoff and
+the legacy remote download fallback. Remote content supports native text and OCR
+with untrusted-content and extraction warnings. The local plugin exposes 16 tools
+and retains download approval. See [Phase 6.4.1](docs/phase6-4-1-native-downloads.md)
+for native attachments and [Phase 7.1](docs/phase7-1-smart-study-planner.md) for planning.
 
 ## Codex skills
 
@@ -88,6 +87,7 @@ for limits, security, test results and actual deployment evidence.
 | `assignment-workflow` | Obtain complete verified assignment context before coursework help. |
 | `course-materials` | Locate relevant files, inspect metadata and retrieve approved materials. |
 | `study-overview` | Summarize deadlines, submissions and workload across courses. |
+| `study-planner` | Choose priorities, fit time budgets and replan using Canvas facts and explicit estimates. |
 
 Codex resolves IDs from names and context; students do not need to provide Canvas IDs.
 

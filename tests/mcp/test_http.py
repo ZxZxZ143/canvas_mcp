@@ -252,7 +252,7 @@ def test_real_remote_startup_does_not_query_canvas_or_import_windows_store(monke
     )
     with TestClient(app, base_url="http://127.0.0.1:8000") as connection:
         assert connection.get("/health").json() == {"status": "ok"}
-        assert len(rpc(connection, "tools/list").json()["result"]["tools"]) == 17
+        assert len(rpc(connection, "tools/list").json()["result"]["tools"]) == 18
 
 
 @pytest.mark.parametrize(

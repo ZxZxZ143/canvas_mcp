@@ -34,6 +34,8 @@ def test_portable_manifests_and_skills_are_self_contained():
         "skills/assignment-workflow/references/eval-cases.json",
         "skills/course-materials/SKILL.md",
         "skills/study-overview/SKILL.md",
+        "skills/study-planner/SKILL.md",
+        "skills/study-planner/references/eval-cases.json",
     }
     skills = {item.name for item in (PLUGIN / "skills").iterdir() if item.is_dir()}
     assert skills == {
@@ -41,6 +43,7 @@ def test_portable_manifests_and_skills_are_self_contained():
         "assignment-workflow",
         "course-materials",
         "study-overview",
+        "study-planner",
     }
     for skill in skills:
         content = (PLUGIN / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
@@ -73,7 +76,7 @@ def test_portable_launcher_initializes_in_a_clean_environment(tmp_path):
                 initialized = await session.initialize()
                 assert initialized.serverInfo.name == "canvas_student"
                 tool_names = {tool.name for tool in (await session.list_tools()).tools}
-                assert len(tool_names) == 15
+                assert len(tool_names) == 16
                 referenced = set()
                 for skill in (PLUGIN / "skills").glob("*/SKILL.md"):
                     referenced.update(

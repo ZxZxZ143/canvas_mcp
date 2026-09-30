@@ -1,13 +1,14 @@
 import asyncio
 import hashlib
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 import pytest
 from mcp.server.fastmcp.exceptions import ToolError
 
 from canvas_mcp.application.contracts import (
+    StudyPlanContext,
     AssignmentContext,
     CourseCoverage,
     Result,
@@ -133,6 +134,20 @@ OUTPUTS = {
     "get_overdue": result(
         WORKLOAD, complete=False, warnings=(Warning("workload", "upstream_timeout", "8"),)
     ),
+    "get_workload": result(
+        StudyPlanContext(
+            Workload(
+                Page((), None, True),
+                Observed(UNKNOWN, None),
+                Observed(UNKNOWN, None),
+                CourseCoverage(("8",), ("8",), (), True),
+            ),
+            "UTC",
+            NOW,
+            NOW + timedelta(days=7),
+            7,
+        )
+    ),
     "list_modules": result(Page((MODULE,), None, True)),
     "list_module_items": result(Page((ITEM,), None, True)),
     "list_announcements": result(Page((ANNOUNCEMENT,), None, True)),
@@ -150,6 +165,7 @@ ARGS = {
     "canvas_get_assignment_context": {"course_id": 8, "assignment_id": 10},
     "canvas_get_upcoming": {},
     "canvas_get_overdue": {},
+    "canvas_get_workload": {},
     "canvas_list_modules": {"course_id": 8},
     "canvas_list_module_items": {"course_id": 8, "module_id": 20},
     "canvas_list_announcements": {

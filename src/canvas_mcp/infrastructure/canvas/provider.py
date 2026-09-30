@@ -247,7 +247,11 @@ class CanvasProvider:
         course_id: EntityId,
         page: PageRequest,
         query: AssignmentFilter = AssignmentFilter(),
+        *,
+        workload_context: bool = False,
     ) -> Page[Assignment]:
+        if type(workload_context) is not bool:
+            raise ValidationError()
         page_request(page)
         assignment_filter(query)
         await self.get_course(ctx, course_id)
@@ -255,12 +259,17 @@ class CanvasProvider:
         return await self._page(
             ctx,
             page,
-            self._binding("assignments", course_id, asdict(query)),
+            self._binding("assignments", course_id, asdict(query), workload_context),
             lambda target: self._client.get_assignments_page(
                 ctx, course_id, page.limit, query, target
             ),
             lambda raw: academic.assignment(
-                raw, course_id, self._subject_id(), self._settings.canvas_origin, detail=False
+                raw,
+                course_id,
+                self._subject_id(),
+                self._settings.canvas_origin,
+                detail=workload_context,
+                rubric_absence_known=False,
             ),
             "assignments.list",
         )

@@ -18,7 +18,7 @@ from canvas_mcp.infrastructure.files.download import CanvasDownloadClient
 from canvas_mcp.infrastructure.files.manager import FileDownloadManager
 from canvas_mcp.infrastructure.files.storage import ManagedStore
 from canvas_mcp.application.academic import AcademicService
-from canvas_mcp.application.contracts import Result, AssignmentContext, Workload
+from canvas_mcp.application.contracts import Result, AssignmentContext, Workload, StudyPlanContext
 from canvas_mcp.domain.errors import UnsupportedCapabilityError
 from canvas_mcp.domain.models import (
     AccessScope,
@@ -208,6 +208,11 @@ class CanvasConnection:
         return await self._academic().get_overdue(
             self._context(), start_at=start_at, end_at=end_at, days=days, courses=courses
         )
+
+    async def get_workload(
+        self, *, days: int = 7, timezone: str | None = None
+    ) -> Result[StudyPlanContext]:
+        return await self._academic().get_workload(self._context(), days=days, timezone=timezone)
 
     async def list_calendar_events(
         self,

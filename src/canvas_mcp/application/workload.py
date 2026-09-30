@@ -2,8 +2,10 @@
 
 from dataclasses import replace
 from datetime import datetime, timedelta
+from typing import Literal
 
 from canvas_mcp.application.contracts import CourseCoverage, Warning, WorkItem, Workload
+from canvas_mcp.application.planner import features, MAX_UPCOMING, MAX_OVERDUE, MAX_UNDATED
 from canvas_mcp.domain.errors import (
     ApplicationError,
     BudgetExceededError,
@@ -86,6 +88,7 @@ async def scan(
     overdue: bool = False,
     include_overdue: bool = False,
     include_submitted: bool = False,
+    planning: bool = False,
 ) -> tuple[Workload, tuple[Warning, ...]]:
     for value in (overdue, include_overdue, include_submitted):
         if type(value) is not bool:
@@ -126,6 +129,7 @@ async def scan(
                 overdue=overdue,
                 include_overdue=include_overdue,
                 include_submitted=include_submitted,
+                planning=planning,
             )
         except COURSE_FAILURES as error:
             # Discard all pages of this course: only an exhausted scan is an
@@ -159,6 +163,36 @@ async def scan(
         )
     )
     coverage = CourseCoverage(ids, tuple(scanned), tuple(failed), True)
+    if planning:
+        kept: list[WorkItem] = []
+        counts = {"upcoming": 0, "overdue": 0, "no_due_date": 0, "unknown": 0}
+        limits = {
+            "upcoming": MAX_UPCOMING,
+            "overdue": MAX_OVERDUE,
+            "no_due_date": MAX_UNDATED,
+            "unknown": MAX_UNDATED,
+        }
+        # Closest overdue first; returned order is chronological evidence, not priority.
+        ordered = tuple(
+            sorted(
+                ordered,
+                key=lambda x: (
+                    abs((x.assignment.due_at.value - now).total_seconds())
+                    if x.assignment.due_at.value
+                    else float("inf"),
+                    x.course.id,
+                    x.assignment.id,
+                ),
+            )
+        )
+        for item in ordered:
+            group = "no_due_date" if item.due_state == "unknown" else item.due_state
+            if counts[group] >= limits[group]:
+                warnings.append(Warning("workload", "item_limit_reached"))
+                continue
+            counts[group] += 1
+            kept.append(item)
+        ordered = tuple(kept)
     return Workload(
         Page(ordered, None, not failed),
         Observed(Availability.NOT_REQUESTED, None),
@@ -178,13 +212,18 @@ async def _scan_course(
     overdue: bool,
     include_overdue: bool,
     include_submitted: bool,
+    planning: bool = False,
 ) -> tuple[dict[tuple[EntityId, EntityId], WorkItem], list[Warning]]:
     items: dict[tuple[EntityId, EntityId], WorkItem] = {}
     warnings: list[Warning] = []
     seen: set[EntityId] = set()
     page = PageRequest(100)
     while True:
-        batch = await provider.list_assignments(ctx, course.id, page)
+        batch = (
+            await provider.list_assignments(ctx, course.id, page, workload_context=True)
+            if planning
+            else await provider.list_assignments(ctx, course.id, page)
+        )
         for assignment in batch.items:
             if assignment.id in seen:
                 continue
@@ -192,6 +231,52 @@ async def _scan_course(
             if len(seen) > 2000:
                 raise BudgetExceededError()
             due = assignment.due_at
+            if planning:
+                sub = assignment.submission.value
+                if (
+                    sub
+                    and (
+                        sub.state is SubmissionState.SUBMITTED
+                        or sub.excused is True
+                        or sub.required is False
+                    )
+                ) or assignment.required is False:
+                    continue
+                if due.value is not None and due.value >= end:
+                    continue
+                past = due.value is not None and due.value < now
+                context_features = features(assignment, now)
+                for flag in context_features.warning_flags:
+                    warnings.append(Warning("workload", flag, course.id))
+                compact = replace(
+                    assignment,
+                    description=Observed(Availability.NOT_REQUESTED, None),
+                    rubric=Observed(Availability.NOT_REQUESTED, None),
+                    references=Observed(Availability.NOT_REQUESTED, None),
+                    attachments=Observed(Availability.NOT_REQUESTED, None),
+                    submission=Observed(Availability.NOT_REQUESTED, None),
+                )
+                own = assignment.submission
+                if own.value is not None:
+                    own = replace(
+                        own,
+                        value=replace(
+                            own.value, attachments=Observed(Availability.NOT_REQUESTED, None)
+                        ),
+                    )
+                due_state: Literal["upcoming", "overdue", "no_due_date", "unknown"] = (
+                    "unknown"
+                    if due.state is not Availability.AVAILABLE
+                    else "no_due_date"
+                    if due.value is None
+                    else "overdue"
+                    if past
+                    else "upcoming"
+                )
+                items[(course.id, assignment.id)] = WorkItem(
+                    course, compact, own, due_state, context_features
+                )
+                continue
             if due.state is not Availability.AVAILABLE:
                 warnings.append(Warning("workload", "unknown_deadline_skipped", course.id))
                 continue

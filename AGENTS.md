@@ -32,3 +32,4 @@ Handle authentication errors, missing courses, assignments, or files, download f
 - Use `assignment-workflow` to understand, analyze, or complete an assignment.
 - Use `course-materials` to find, retrieve, and read Canvas files.
 - Use `study-overview` for deadlines, upcoming or overdue work, and cross-course status.
+- Use `study-planner` for priorities, time budgets, weekly planning, deadline risk, and replanning; keep Canvas facts separate from estimates.

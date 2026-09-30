@@ -1,0 +1,33 @@
+{
+  "clock": "2026-09-30T15:00:00Z",
+  "timezone": "Asia/Qyzylorda",
+  "source": "synthetic; no student data",
+  "user_overrides": {"report": {"minimum_remaining_hours": 3, "source": "prior human message in this mock conversation"}},
+  "tasks": {
+    "quiz": {"course_id": 1, "assignment_id": 11, "course": "AI", "name": "Quiz", "due_at": "2026-10-01T18:59:00Z", "submitted": false, "availability": "open", "description": "Answer five multiple-choice questions on already studied definitions. No written report."},
+    "report": {"course_id": 2, "assignment_id": 22, "course": "Physics", "name": "Lab report", "due_at": "2026-10-02T18:59:00Z", "submitted": false, "availability": "open", "description": "Analyse the dataset in a notebook, produce three plots, discuss error sources, and write a six-page report."},
+    "homework": {"course_id": 3, "assignment_id": 33, "course": "Theory", "name": "Homework", "due_at": "2026-10-05T18:59:00Z", "submitted": false, "availability": "open", "description": "Solve four exercises with written derivations. One supporting PDF; requirements are already in this description."},
+    "unknown": {"course_id": 1, "assignment_id": 44, "course": "AI", "name": "Project", "due_at": "2026-10-02T18:59:00Z", "submitted": false, "availability": "unknown", "description": null},
+    "overdue": {"course_id": 3, "assignment_id": 55, "course": "Theory", "name": "Old worksheet", "due_at": "2026-08-20T18:59:00Z", "submitted": false, "availability": "open", "description": "Solve one linear equation and show two algebra steps."},
+    "done": {"course_id": 3, "assignment_id": 66, "course": "Theory", "name": "Submitted worksheet", "due_at": "2026-09-29T18:59:00Z", "submitted": true, "late": true, "availability": "open", "description": "One equation."},
+    "closed": {"course_id": 2, "assignment_id": 77, "course": "Physics", "name": "Closed quiz", "due_at": "2026-09-29T18:59:00Z", "submitted": false, "availability": "closed", "description": "Ten questions."}
+  },
+  "cases": [
+    {"id": "A", "prompt": "Что мне сегодня делать?", "tasks": ["quiz"], "expected": ["local deadline tomorrow at 23:59", "explicit approximate effort with evidence", "no invented clock schedule"]},
+    {"id": "B", "prompt": "Что самое срочное?", "tasks": ["quiz", "report", "homework"], "expected": ["reserve quiz block", "start report early", "homework may wait"]},
+    {"id": "C", "prompt": "С чего начать?", "tasks": ["quiz", "report"], "expected": ["consider report size beyond deadline order", "respect user minimum three hours", "report not quick"]},
+    {"id": "D", "prompt": "Что просрочено?", "tasks": ["overdue", "closed"], "expected": ["old overdue still included", "open unfinished actionable", "closed work is status note"]},
+    {"id": "E", "prompt": "Что надо доделать?", "tasks": ["done", "quiz"], "expected": ["late submitted work excluded from main queue"]},
+    {"id": "F", "prompt": "План на неделю", "tasks": ["quiz"], "complete": false, "failed_course": "Physics", "expected": ["explicit failed-course partial warning", "never all assignments"]},
+    {"id": "G", "prompt": "Сколько займёт проект?", "tasks": ["unknown"], "expected": ["effort unknown", "targeted context rather than title estimate", "no bulk file reads"]},
+    {"id": "H", "prompt": "У меня 30 минут. Что быстро закрыть?", "tasks": ["quiz", "report", "unknown"], "budget_minutes": 30, "expected": ["quiz plausible quick task with uncertainty", "blocks plus buffer at most 30", "unknown not called quick"]},
+    {"id": "I", "prompt": "У меня сегодня два часа", "tasks": ["quiz", "report", "homework"], "budget_minutes": 120, "expected": ["start report rather than promise full finish", "reserve quiz and buffer", "total blocks at most 120"]},
+    {"id": "J", "prompt": "Распланируй неделю", "tasks": ["quiz", "report", "homework"], "expected": ["local dates", "start-by recommendations", "no invented daily availability"]},
+    {"id": "K", "prompt": "Физику сегодня не хочу; сначала AI", "tasks": ["quiz", "report"], "expected": ["honor AI first", "brief report deadline consequence"]},
+    {"id": "L", "prompt": "Я закончил первый пункт, но ещё не отправил", "tasks": ["quiz", "report"], "prior_order": ["quiz", "report"], "expected": ["reuse context no refresh", "manual submit reminder distinguished from Canvas state", "report moves up"]},
+    {"id": "M", "prompt": "Начнём с первого — объясни задание", "tasks": ["quiz", "homework"], "prior_order": ["homework", "quiz"], "expected": ["resolve homework from prior order", "assignment context for course 3 assignment 33", "assignment-workflow first touch without asking name"]},
+    {"id": "N", "prompt": "План на неделю", "tasks": [], "complete": true, "expected": ["no work in checked bounded window", "do not invent coursework"]},
+    {"id": "O", "prompt": "Где риск не успеть?", "tasks": ["quiz", "report", "homework", "unknown"], "expected": ["report size risk", "unknown requirements risk", "multiple courses considered without raw-point ranking"]},
+    {"id": "P", "prompt": "Что сегодня?", "clock": "2026-09-30T19:01:00Z", "tasks": ["quiz"], "expected": ["local today is October 1", "quiz due today at 23:59 not tomorrow", "midnight boundary preserved"]}
+  ]
+}

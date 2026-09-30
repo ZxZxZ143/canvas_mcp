@@ -5,6 +5,8 @@ before exposing these contracts through any transport. Direct dataclass creation
 is not proof that values are valid or authorized.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Generic, Literal, TypeVar
@@ -15,6 +17,7 @@ from canvas_mcp.domain.models import (
     CalendarEvent,
     Course,
     EntityId,
+    ExternalText,
     AttachmentMetadata,
     ModuleSequence,
     Observed,
@@ -102,6 +105,32 @@ class WorkItem:
     assignment: Assignment
     submission: Observed[Submission]
     due_state: Literal["upcoming", "overdue", "no_due_date", "unknown"]
+    features: WorkloadFeatures | None = None
+
+
+@dataclass(frozen=True)
+class WorkloadFeatures:
+    """Evidence derived from assignment-list metadata, never an effort estimate."""
+
+    description_excerpt: Observed[ExternalText]
+    description_available: bool | None
+    description_length_band: str
+    rubric_available: bool | None
+    rubric_criteria_count: int | None
+    direct_attachment_count: int | None
+    linked_file_count: int | None
+    task_type_signals: tuple[str, ...]
+    availability: str
+    warning_flags: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class StudyPlanContext:
+    workload: Workload
+    timezone: str
+    start_at: datetime
+    end_at: datetime
+    days: int
 
 
 @dataclass(frozen=True)

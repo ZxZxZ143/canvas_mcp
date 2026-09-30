@@ -29,7 +29,7 @@ async def run(plugin_root: Path) -> int:
             print(f"profile={'false' if profile.isError else 'true'}")
             courses = await session.call_tool("canvas_list_courses", {"limit": 25})
             print(f"courses={'false' if courses.isError else 'true'}")
-            return 1 if profile.isError or courses.isError or len(tools.tools) != 15 else 0
+            return 1 if profile.isError or courses.isError or len(tools.tools) != 16 else 0
 
 
 if __name__ == "__main__":
