@@ -327,7 +327,12 @@ async def open_scoped_connection(
             FileService(provider, downloads if downloads is not None else _UnavailableDownloads()),
             FileContentService(content) if content is not None else None,
             GradeChangeService(
-                provider, state, settings.canvas_origin, local=local_state, audit=logger.state_check
+                provider,
+                state,
+                settings.canvas_origin,
+                local=local_state,
+                audit=logger.state_check,
+                timing=logger.state_timing,
             )
             if state is not None
             else None,

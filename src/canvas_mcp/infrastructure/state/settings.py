@@ -14,6 +14,8 @@ class StateSettings:
     url: str = field(repr=False)
     backend: str
     sqlite_path: Path | None = field(default=None, repr=False)
+    tls_mode: str | None = field(default=None, repr=False)
+    tls_root: str | None = field(default=None, repr=False)
 
     @classmethod
     def load(cls, environ: Mapping[str, str], *, remote: bool = False) -> "StateSettings":
@@ -33,13 +35,26 @@ class StateSettings:
             if parsed.fragment or len(value) > 4096:
                 raise ValueError()
             query = parse_qs(parsed.query, strict_parsing=True)
-            if set(query) - {"sslmode", "sslrootcert"} or any(len(x) != 1 for x in query.values()):
+            if set(query) - {"sslmode", "sslrootcert", "channel_binding"} or any(
+                len(x) != 1 for x in query.values()
+            ):
+                raise ValueError()
+            if "channel_binding" in query and query["channel_binding"] != ["require"]:
                 raise ValueError()
             mode = query.get("sslmode", [""])[0]
             local = parsed.hostname in ("localhost", "127.0.0.1", "::1")
-            if mode != "verify-full" and not (local and not remote and mode == "disable"):
+            if mode not in ("require", "verify-full") and not (
+                local and not remote and mode == "disable"
+            ):
                 raise ValueError()
-            return cls(value, "postgresql")
+            # Neon-style require URLs are upgraded at the driver boundary. Never
+            # downgrade verification; libpq 16+ supports the system CA store.
+            return cls(
+                value,
+                "postgresql",
+                tls_mode="disable" if mode == "disable" else "verify-full",
+                tls_root=None if mode == "disable" else query.get("sslrootcert", ["system"])[0],
+            )
         except (ValueError, TypeError):
             pass
         raise StateStoreUnavailableError() from None

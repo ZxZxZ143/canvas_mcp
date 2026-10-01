@@ -2,6 +2,7 @@
 
 import json
 import logging
+import math
 from contextvars import ContextVar
 from enum import Enum
 from typing import TextIO
@@ -139,6 +140,25 @@ class EventLogger:
                     "changed_count": changed,
                 }
             ),
+        )
+
+    def state_timing(
+        self, canvas_seconds: float, state_seconds: float, total_seconds: float
+    ) -> None:
+        if any(
+            not math.isfinite(x) or x < 0 or x > 300
+            for x in (canvas_seconds, state_seconds, total_seconds)
+        ):
+            return
+        self._logger.info(
+            json.dumps(
+                {
+                    "event": "grade_check_timing",
+                    "canvas_collection_ms": round(canvas_seconds * 1000, 2),
+                    "state_processing_ms": round(state_seconds * 1000, 2),
+                    "total_ms": round(total_seconds * 1000, 2),
+                }
+            )
         )
 
     def emit(

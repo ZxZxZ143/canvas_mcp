@@ -123,6 +123,8 @@ Safe audit logs contain fixed event classes and counts only. No grades, names,
 subjects, owners, DSNs or raw payloads are logged. PostgreSQL driver diagnostics
 are suppressed while state operations run, including DEBUG configuration.
 Unavailable stores produce `state_store_unavailable`, never “no changes”.
+Timing and audit callbacks are best effort: an observability failure cannot hide
+a prepared response after its baseline commit or mask a safe state-store error.
 
 ## Migrations, deployment and operator reset
 
@@ -133,8 +135,12 @@ state operations safely. Normal requests only verify the schema.
 
 Set `STATE_DATABASE_URL` through runtime secret configuration; never put its real
 value in Git, tool responses, health output or command-line arguments. Remote
-PostgreSQL URLs must request `sslmode=verify-full` and a trusted CA through
-`sslrootcert` when required. Loopback PostgreSQL with TLS disabled is allowed only
+PostgreSQL URLs must request `sslmode=require` or `sslmode=verify-full`. The driver
+always enforces `verify-full` and uses the system CA store unless an explicit
+trusted `sslrootcert` is supplied. Neon's `channel_binding=require` URL option is
+accepted; insecure preferences, duplicate options and disabled remote TLS fail
+closed. The pinned binary driver provides libpq 18, which supports the system CA
+store. Loopback PostgreSQL with TLS disabled is allowed only
 for local tests. For SQLite use an absolute path URL (`sqlite:///E:/.../state.db`
 on Windows, `sqlite:////absolute/path/state.db` on Unix).
 
@@ -202,7 +208,7 @@ as independently repeated by the reviewers. The additional completed-course
 coverage caveat was resolved by bounded accessible-course discovery. The timeout
 cleanup caveat is documented above.
 
-Final full suite: **1,574 passed, 56 Linux-only tests skipped, 2 dependency
+Original implementation full suite: **1,574 passed, 56 Linux-only tests skipped, 2 dependency
 deprecation warnings**, 244.16 seconds. PostgreSQL parametrizations were enabled
 against the real isolated PostgreSQL 18 cluster. This includes contract, grade
 diff, partial/concurrency, remote HTTP/OAuth, planner/assignment, files/OCR and
@@ -214,13 +220,99 @@ annotated as writing application state, with no destructive/open-world hint;
 Canvas access remains read-only. No current-grade analytics or other change
 categories were added.
 
+## Production Neon acceptance
+
+The selected persistence provider is **Neon PostgreSQL Free**, provisioned
+manually by the user. No card/payment, project creation or database provisioning
+has been performed by this agent. Whether the user's signup required a card is
+unverified. The existing Render Free service continues hosting MCP, Canvas
+access, Auth0, file processing and OCR. Neon holds only the compact external
+state described above. It survives Render process/filesystem replacement.
+
+The user supplies the connection secret only through Render's runtime
+`STATE_DATABASE_URL`. No value, hostname, username or password belongs in commands,
+build arguments, images, logs, health, MCP responses or this document. On
+2026-10-01 a key-only inspection of the loaded Render Environment page found no
+`STATE_DATABASE_URL` entry. Live production migration/acceptance therefore remain
+pending; the deployed service still reports revision `2bd0bee`.
+
+Neon compute may scale to zero. Every state transaction opens and closes its own
+connection; there is no persistent connection or oversized pool. Opening retries
+at most three times, each with a five-second driver timeout, separated by 250/500
+ms. Established transactions and commits are never replayed automatically after
+an ambiguous disconnect. A failed transaction gives the safe unavailable error;
+a later user check opens a fresh connection. No keepalive traffic is added.
+
+Render Free has no shell, one-off jobs or pre-deploy command. The explicit
+migration can run through a temporary operator-selected Docker Command override
+on the reviewed image, before its server accepts requests:
+
+```text
+sh -c 'python -m canvas_mcp.infrastructure.state.operator migrate --remote && python -m canvas_mcp.infrastructure.state.operator inspect --remote && exec python -m canvas_mcp.mcp_http_server'
+```
+
+This command contains no secret. Migration emits only a fixed success event and
+schema version; failure emits only `state_store_unavailable`. Operator inspection
+emits version, fixed table names, column names and row counts, never grade values,
+titles or owner identities. It does not initialize a baseline. Restore the Docker
+Command to its normal empty override after migration and the first two checks;
+then restart the same reviewed image against the unchanged database. The normal
+image command neither migrates nor contacts Canvas or Neon on startup, and
+`/health` remains exactly `{"status":"ok"}` independent of database availability.
+If the runtime credential lacks migration privileges, migration must use an
+operator-approved role through the provider; do not broaden credentials silently.
+The bootstrap uses one credential throughout. A role that creates the tables is
+their owner and is not the restricted runtime role recommended above. After an
+operator-role migration, the operator must arrange ownership/grants and change
+the Render secret to the restricted runtime credential before normal-startup
+acceptance. If the user instead supplies only the default Neon owner credential,
+record that actual privilege limitation; do not claim least privilege. The
+production role's privileges remain unverified until configuration exists.
+
+Safe `grade_check_timing` logs split `canvas_collection_ms`,
+`state_processing_ms` and `total_ms`. Canvas time includes profile, discovery and
+grade collection, including failed calls. State processing is the remaining
+application time: connection/retries, lock wait, SQL, comparison, response
+validation and commit/close. It is not a database-server-only query measurement.
+The total covers the grade-check use case; existing HTTP tool timing additionally
+includes transport projection. Actual production figures and cold-start effects
+must be recorded after live requests, without attributing all latency to Neon.
+
+Final read-only production-preparation reviews: security reported no new
+Critical/High findings and the Medium shared migration/runtime credential caveat
+above (13 focused tests passed). Correctness reproduced a High post-commit
+callback failure that could consume a grade without returning its report. It was
+fixed with best-effort timing/audit and SQLite/PostgreSQL regression coverage;
+independent re-review reported no remaining Critical/High findings (14 passed,
+5 PostgreSQL cases deselected). Neither review claims live Neon verification.
+
+The Neon preparation patch builds on commit `56df74e`. Its final full regression
+run passed **1,593 tests**, with **56 Linux-only skips** and **2 dependency
+deprecation warnings**, in **241.29 seconds**. Both SQLite and actual isolated
+PostgreSQL 18 parametrizations were enabled, including the post-commit
+observability fix. Ruff check/format and mypy passed; wheel and sdist build,
+main/isolated installs, byte-for-byte verification of all 99 sources plus
+migration, and both dependency checks passed. The installed operator CLI migrated
+and inspected the isolated PostgreSQL schema at version 1; remote TLS-disable
+configuration emitted only `state_store_unavailable`. These are local results,
+not Neon migration or Render acceptance. The Docker engine remains unavailable,
+so the skipped Linux sandbox checks require the existing Render image build.
+
+Web/mobile acceptance uses the same verified `personal_canvas` connection and
+owner digest across devices, chats and refreshed OAuth tokens. A first check
+must establish the baseline with no historical grades reported new; an immediate
+second and a post-restart check must preserve it. Native mobile verification
+requires the user's phone and an actual reported result. Natural future new or
+edited grades add evidence later and are not a deployment prerequisite.
+
 Pending production sequence, only after durable PostgreSQL is configured:
 
 1. Explicit migration, verify least-privilege runtime reads/writes, deploy reviewed code.
 2. First live Web check creates a baseline without reporting historical grades new.
 3. Restart Render and repeat in a new chat: same baseline, no reset.
-4. Native mobile and Web, in both directions, share that verified connection baseline.
-5. Observe natural new/edited grades once, with old→new values, and qualify partial coverage.
+4. Native mobile and Web share that verified connection baseline; reverse only if useful.
+5. Confirm ordinary reads leave the grade baseline untouched and record minimal regressions.
 
 Never change real Canvas grades for a test. Phase 7.2 is **not production complete**
-until these live conditions are verified. No paid provisioning is authorized.
+until these live conditions are verified. Natural new/edited grades can provide
+later evidence. No paid provisioning is authorized. Phase 7.3 is not started.

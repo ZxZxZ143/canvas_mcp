@@ -1,10 +1,12 @@
 """On-demand fresh grade scan and transactional reporting, independent of other reads."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Awaitable
 from dataclasses import dataclass, replace
 import asyncio
 import hashlib
 import json
+import time
+from typing import TypeVar
 
 from canvas_mcp.application.connection import ConnectionService
 from canvas_mcp.application.contracts import Result, Warning, CourseCoverage
@@ -19,6 +21,8 @@ from canvas_mcp.domain.grade_state import GradeChange, GradeFact, NamedGrade, co
 from canvas_mcp.domain.models import AccessScope, EntityId, PageRequest, RequestContext
 from canvas_mcp.ports.lms import LmsAcademicQueries
 from canvas_mcp.ports.state import StateRepository
+
+T = TypeVar("T")
 
 
 def state_owner(scope: AccessScope, origin: str, subject: EntityId, *, local: bool = False) -> str:
@@ -54,6 +58,7 @@ class GradeChangeService:
         *,
         local: bool = False,
         audit: Callable[[str, int, int, int, int], None] | None = None,
+        timing: Callable[[float, float, float], None] | None = None,
     ) -> None:
         self.provider, self.repository, self.origin, self.local = (
             provider,
@@ -62,40 +67,59 @@ class GradeChangeService:
             local,
         )
         self.audit = audit
+        self.timing = timing
 
     async def check(
         self,
         ctx: RequestContext,
         validate: Callable[[Result[GradeChanges]], None] | None = None,
     ) -> Result[GradeChanges]:
+        started = time.monotonic()
+        canvas_time = [0.0]
         try:
             async with asyncio.timeout(90):
-                response = await self._check(ctx, validate)
+                response = await self._check(ctx, validate, canvas_time)
         except (StateStoreUnavailableError, TimeoutError):
-            if self.audit is not None:
-                self.audit("state_sync_failed", 0, 0, 0, 0)
+            self._audit("state_sync_failed", 0, 0, 0, 0)
             raise StateStoreUnavailableError() from None
-        if self.audit is not None:
-            self.audit(
-                "baseline_created" if response.data.baseline_created else "grade_diff_completed",
-                len(response.data.coverage.scanned),
-                len(response.data.coverage.failed),
-                len(response.data.new_grades),
-                len(response.data.changed_grades),
-            )
+        total = time.monotonic() - started
+        if self.timing is not None:
+            try:
+                self.timing(canvas_time[0], max(0.0, total - canvas_time[0]), total)
+            except Exception:
+                # Observability cannot discard a response after its durable commit.
+                # Never log callback exception text, which could contain secrets.
+                pass
+        self._audit(
+            "baseline_created" if response.data.baseline_created else "grade_diff_completed",
+            len(response.data.coverage.scanned),
+            len(response.data.coverage.failed),
+            len(response.data.new_grades),
+            len(response.data.changed_grades),
+        )
         return response
+
+    def _audit(self, event: str, scanned: int, failed: int, new: int, changed: int) -> None:
+        if self.audit is not None:
+            try:
+                self.audit(event, scanned, failed, new, changed)
+            except Exception:
+                pass
 
     async def _check(
         self,
         ctx: RequestContext,
         validate: Callable[[Result[GradeChanges]], None] | None,
+        canvas_time: list[float],
     ) -> Result[GradeChanges]:
-        profile = await self.provider.get_profile(ctx)
+        profile = await self._measure(self.provider.get_profile(ctx), canvas_time)
         owner = state_owner(ctx.scope, self.origin, profile.id, local=self.local)
         # Lock BEFORE collecting; overlapping checks cannot commit stale Canvas batches.
         async with self.repository.transaction(owner) as tx:
             first = not await tx.initialized()
-            courses = await discover_courses(self.provider, ctx, (), active_only=False)
+            courses = await self._measure(
+                discover_courses(self.provider, ctx, (), active_only=False), canvas_time
+            )
             scanned: list[EntityId] = []
             failed: list[EntityId] = []
             baselined: list[EntityId] = []
@@ -107,7 +131,7 @@ class GradeChangeService:
             total = 0
             for index, course in enumerate(courses):
                 try:
-                    items = await self._collect_course(ctx, course.id)
+                    items = await self._measure(self._collect_course(ctx, course.id), canvas_time)
                 except (*COURSE_FAILURES, MalformedUpstreamError, BudgetExceededError) as error:
                     failed.append(course.id)
                     warnings.append(Warning("grade_changes", error.diagnostic_code, course.id))
@@ -193,6 +217,14 @@ class GradeChangeService:
             if first and courses and not scanned:
                 raise BudgetExceededError()
             return response
+
+    @staticmethod
+    async def _measure(call: Awaitable[T], duration: list[float]) -> T:
+        started = time.monotonic()
+        try:
+            return await call
+        finally:
+            duration[0] += time.monotonic() - started
 
     async def _collect_course(
         self, ctx: RequestContext, course_id: EntityId

@@ -11,6 +11,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from importlib.resources import files
 import sqlite3
+import time
 from typing import Any, TypeVar, cast
 
 from canvas_mcp.domain.errors import StateStoreUnavailableError
@@ -181,7 +182,22 @@ class SqlRepository:
         if self._postgres:
             import psycopg
 
-            return psycopg.connect(self._settings.url, connect_timeout=5, autocommit=False)
+            options: dict[str, Any] = {}
+            if self._settings.tls_mode is not None:
+                options["sslmode"] = self._settings.tls_mode
+            if self._settings.tls_root is not None:
+                options["sslrootcert"] = self._settings.tls_root
+            for attempt in range(3):
+                try:
+                    return psycopg.connect(
+                        self._settings.url, connect_timeout=5, autocommit=False, **options
+                    )
+                except psycopg.OperationalError:
+                    # Reconnect only before a transaction starts. Never retry a
+                    # transaction/commit whose result could already be durable.
+                    if attempt == 2:
+                        raise
+                    time.sleep(0.25 * (attempt + 1))
         assert self._settings.sqlite_path is not None
         db = sqlite3.connect(self._settings.sqlite_path, timeout=75, check_same_thread=False)
         db.execute("PRAGMA foreign_keys=ON")
@@ -265,6 +281,33 @@ class SqlRepository:
             await tx.query("DELETE FROM grade_state WHERE owner=?", (owner,))
             await tx.query("DELETE FROM state_courses WHERE owner=?", (owner,))
             await tx.query("UPDATE state_owners SET initialized=0 WHERE owner=?", (owner,))
+
+    async def inspect(self) -> dict[str, Any]:
+        """Operator-only safe schema/count evidence. Never read any grade value."""
+        connection = None
+        try:
+            connection = await joined(self._connect)
+            tx = SqlTransaction(connection, "", self._postgres)
+            await self._verify(tx)
+            tables = {}
+            for table in ("state_owners", "state_courses", "grade_state"):
+                if self._postgres:
+                    columns = await tx.query(
+                        "SELECT column_name FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=? ORDER BY ordinal_position",
+                        (table,),
+                    )
+                    names = [row[0] for row in columns]
+                else:
+                    columns = await tx.query("PRAGMA table_info(" + table + ")")
+                    names = [row[1] for row in columns]
+                count = await tx.query("SELECT count(*) FROM " + table)
+                tables[table] = {"fields": names, "row_count": count[0][0]}
+            return {"schema_version": 1, "tables": tables}
+        except Exception:
+            raise StateStoreUnavailableError() from None
+        finally:
+            if connection is not None:
+                await joined(connection.close)
 
 
 class SQLiteStateRepository(SqlRepository):
