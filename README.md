@@ -1,5 +1,11 @@
 # Canvas Student for Codex
 
+**AI integration · Layered MCP architecture · Bounded queries · Secure managed files**
+
+[Architecture](#architecture) · [Setup](#requirements-and-installation) · [File security](docs/secure-file-layer.md) · [Plugin guide](docs/personal-plugin.md) · [Tests](#development-and-verification)
+
+Start with the architecture and file-security guide to inspect the separation between MCP results, coursework services and credential/network policy. This project is a personal read-only integration with a local plugin; its implementation and limitations are documented below.
+
 Canvas Student is a personal, read-only Canvas LMS integration for Codex. A local stdio MCP server exposes bounded coursework queries, while a Codex plugin supplies four workflows for finding and understanding courses, assignments, deadlines, and materials.
 
 ## Current status
